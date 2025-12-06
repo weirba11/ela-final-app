@@ -16,6 +16,7 @@ interface WorksheetProps {
   onUpdateQuestionData?: (index: number, q: Question) => void;
   onUpdatePassageData?: (index: number, visualInfo: Partial<VisualData>) => void;
   onDeleteQuestion?: (index: number) => void;
+  onDeletePassage?: (index: number) => void;
   isGeneratingImage?: boolean;
 }
 
@@ -33,6 +34,7 @@ export const Worksheet: React.FC<WorksheetProps> = ({
     onUpdateQuestionData,
     onUpdatePassageData,
     onDeleteQuestion,
+    onDeletePassage,
     isGeneratingImage
 }) => {
   
@@ -257,6 +259,16 @@ export const Worksheet: React.FC<WorksheetProps> = ({
                                             title="Generate a whole new passage and set of questions"
                                         >
                                             <RefreshCw size={12} /> New Passage
+                                        </button>
+                                    )}
+
+                                    {onDeletePassage && (
+                                        <button 
+                                            onClick={() => onDeletePassage(index)}
+                                            className="text-[10px] bg-red-100 text-red-700 border border-red-200 px-3 py-1 rounded shadow-sm hover:bg-red-200 flex items-center gap-1.5 no-print transition-all font-medium"
+                                            title="Delete this entire passage and its questions"
+                                        >
+                                            <Trash2 size={12} /> Delete Passage
                                         </button>
                                     )}
                                 </div>

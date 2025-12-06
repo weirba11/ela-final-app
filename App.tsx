@@ -20,6 +20,7 @@ const App: React.FC = () => {
     includeDate: true,
     fontSize: 'medium',
     passageLength: 'medium',
+    customTopic: ''
   });
 
   const [worksheetData, setWorksheetData] = useState<WorksheetData | null>(null);
@@ -316,6 +317,22 @@ const App: React.FC = () => {
     setWorksheetData({ ...worksheetData, questions: newQuestions });
   };
 
+  const handleDeletePassage = (index: number) => {
+      if (!worksheetData) return;
+      const targetQ = worksheetData.questions[index];
+      const targetPassage = targetQ.visualInfo?.passageContent;
+  
+      if (!targetPassage) {
+          // Fallback: just delete the single question if no passage content to match against
+          handleDeleteQuestion(index);
+          return;
+      }
+  
+      // Remove all questions that share this passage content
+      const newQuestions = worksheetData.questions.filter(q => q.visualInfo?.passageContent !== targetPassage);
+      setWorksheetData({ ...worksheetData, questions: newQuestions });
+  };
+
   return (
     <div className="flex h-screen w-full overflow-hidden">
       <div className="w-full md:w-auto flex-shrink-0 h-full bg-white z-20 absolute md:relative transition-transform transform md:transform-none -translate-x-full md:translate-x-0 print:hidden">
@@ -354,6 +371,7 @@ const App: React.FC = () => {
             onUpdateQuestionData={handleUpdateQuestionData}
             onUpdatePassageData={handleUpdatePassageData}
             onDeleteQuestion={handleDeleteQuestion}
+            onDeletePassage={handleDeletePassage}
             isGeneratingImage={isGeneratingImage}
         />
       </main>

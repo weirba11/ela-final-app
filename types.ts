@@ -143,4 +143,5 @@ export interface GenerationConfig {
   includeDate: boolean;
   fontSize: 'small' | 'medium' | 'large';
   passageLength: 'short' | 'medium' | 'long';
+  customTopic?: string;
 }

@@ -2,7 +2,7 @@
 import React from 'react';
 import { AVAILABLE_STANDARDS, CATEGORY_COLORS } from '../constants';
 import { GenerationConfig, QuestionType, Question } from '../types';
-import { BookOpen, Check, RefreshCw, FileText, AlertCircle, Layout, Type, Users, Settings, Plus, X, Trash2, Upload, ChevronDown, ChevronRight, FileSpreadsheet, AlignLeft, ListPlus, Link2 } from 'lucide-react';
+import { BookOpen, Check, RefreshCw, FileText, AlertCircle, Layout, Type, Users, Settings, Plus, X, Trash2, Upload, ChevronDown, ChevronRight, FileSpreadsheet, AlignLeft, ListPlus, Link2, PenTool } from 'lucide-react';
 
 interface SidebarProps {
   config: GenerationConfig;
@@ -220,16 +220,32 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
              )}
           </div>
 
+          {/* Custom Topic Config */}
+          <div>
+             <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                <PenTool size={16} /> Custom Plot / Topic
+             </label>
+             <textarea
+                placeholder="e.g., A robot who loves gardening, or The history of chocolate..."
+                value={config.customTopic || ''}
+                onChange={(e) => setConfig(prev => ({...prev, customTopic: e.target.value}))}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-xs focus:ring-brand-500 focus:border-brand-500 min-h-[60px]"
+             />
+             <p className="text-[10px] text-gray-400 mt-1 italic">
+                 The AI will use this for the next passage generated.
+             </p>
+          </div>
+
           {/* Student Names Config */}
           <div>
              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                 <Users size={16} /> Student Names (Fiction Only)
              </label>
              <textarea
-                placeholder="Enter names separated by commas. These will be used for Fiction stories or math problems."
+                placeholder="Enter names separated by commas..."
                 value={config.studentNames || ''}
                 onChange={(e) => setConfig(prev => ({...prev, studentNames: e.target.value}))}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-xs focus:ring-brand-500 focus:border-brand-500 min-h-[60px]"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-xs focus:ring-brand-500 focus:border-brand-500 min-h-[50px]"
              />
           </div>
 
