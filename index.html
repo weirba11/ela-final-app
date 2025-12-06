@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>educationalresource.org - ELA Worksheet Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Serif:wght@400;700&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              serif: ['Noto Serif', 'serif'],
+            },
+            colors: {
+              brand: {
+                50: '#eff6ff',
+                100: '#dbeafe',
+                500: '#3b82f6',
+                600: '#2563eb',
+                700: '#1d4ed8',
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      @media print {
+        /* Setting margin to 0.5in creates proper buffer on ALL pages */
+        @page { 
+          margin: 0.5in; 
+          size: letter;
+        }
+        
+        /* Global Reset for Printing */
+        html, body, #root {
+          height: auto !important;
+          min-height: 0 !important;
+          width: 100% !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: visible !important;
+          position: static !important;
+          display: block !important;
+          background: white !important;
+        }
+
+        /* Reset Height/Overflow utility classes that trap content */
+        .h-screen, .h-full, .overflow-hidden, .overflow-auto, main {
+          height: auto !important;
+          width: 100% !important;
+          overflow: visible !important;
+          display: block !important;
+          position: static !important;
+        }
+
+        /* Hide UI elements */
+        .no-print { display: none !important; }
+        
+        /* Ensure Page Breaks work */
+        .print-break-inside-avoid { break-inside: avoid; }
+        .print-break-before { break-before: page; }
+        
+        /* Graphics */
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
+    "html2canvas": "https://aistudiocdn.com/html2canvas@^1.4.1"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="bg-gray-50 text-gray-900 h-screen overflow-hidden flex flex-col">
+    <div id="root" class="h-full flex flex-col"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

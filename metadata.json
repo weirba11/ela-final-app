@@ -1,0 +1,5 @@
+{
+  "name": "3rd Grade ELA Worksheet Creator",
+  "description": "A 3rd-grade ELA worksheet generator for teachers using Gemini API to create custom curriculum-aligned printable PDFs. Supports Reading Literature, Informational Text, and Language standards.",
+  "requestFramePermissions": []
+}
