@@ -284,10 +284,10 @@ const STANDARD_DETAILS: Record<string, string> = {
     - **Structure Help**: Explain how structure develops plot, characters, setting, and conflict/resolution.
 
     **VISUAL REQUIREMENT**:
-    - **CRITICAL**: The 'passageContent' MUST be clearly divided into labeled parts.
+    - **CRITICAL**: The 'passageContent' MUST be clearly divided.
     - **Stories**: Use headers like "**CHAPTER 1: [Title]**" and "**CHAPTER 2: [Title]**".
     - **Dramas**: Use headers like "**SCENE 1**" and "**SCENE 2**" with stage directions.
-    - **Poems**: Use headers like "**STANZA 1**" and "**STANZA 2**".
+    - **Poems**: DO NOT LABEL STANZAS (e.g. do not write "**Stanza 1**"). Instead, just separate the stanzas with clear double spacing (blank lines). The questions can still ask about "Stanza 1" or "Stanza 2", but the text itself should not explicitly label them.
 
     **OUTPUT CATEGORIES**:
     1. **Identify Terms**: Label parts correctly (e.g., "Which part of the text is this?"). (DOK 1)
@@ -315,7 +315,7 @@ const STANDARD_DETAILS: Record<string, string> = {
   `
 };
 
-export const generateWorksheetContent = async (config: GenerationConfig): Promise<WorksheetData> => {
+export const generateWorksheetContent = async (config: GenerationConfig, existingPassage?: { title: string, content: string }): Promise<WorksheetData> => {
   if (!import.meta.env.VITE_API_KEY) {
     throw new Error("API Key is missing.");
   }
@@ -335,17 +335,53 @@ export const generateWorksheetContent = async (config: GenerationConfig): Promis
       long: "Make reading passages LONG and detailed (approx. 350-500 words)."
   }[config.passageLength || 'medium'];
 
+  // Handle Student Names
+  let nameInstruction = "";
+  if (config.studentNames && config.studentNames.trim().length > 0) {
+      nameInstruction = `
+        **STUDENT NAMES INSTRUCTION (IMPORTANT)**:
+        - You have been provided these student names: [${config.studentNames.trim()}].
+        - **FICTION (RL Standards)**: You MUST weave these names into your stories as characters! Make it fun for the class.
+        - **WORD PROBLEMS**: Use these names in math or grammar word problems.
+        - **NON-FICTION (RI Standards)**: Do **NOT** use these names in historical, scientific, or technical passages. Keep RI texts strictly factual and academic.
+      `;
+  }
+
+  let passageContextInstruction = "";
+  if (existingPassage) {
+      passageContextInstruction = `
+        **CONTEXTUAL EXTENSION MODE (CRITICAL)**:
+        - The user wants to add more questions to the **EXISTING PASSAGE** below.
+        - **DO NOT CREATE A NEW PASSAGE.**
+        - You MUST use the following passage content EXACTLY as provided for the 'visualInfo.passageContent' of every new question.
+        - **Passage Title**: "${existingPassage.title}"
+        - **Passage Content**: "${existingPassage.content}"
+        - Generate ${totalQuestions} questions that relate to this specific text.
+      `;
+  } else {
+      passageContextInstruction = `
+        **NEW CONTENT MODE**:
+        - You must create **NEW** high-quality reading passages.
+        - **CRITICAL**: For any RL (Fiction) or RI (Informational) standard, you **MUST** generate a passage. Do NOT create standalone questions without a passage for Reading standards.
+        - Even if only 1-2 questions are requested, providing a passage is mandatory for Reading standards.
+      `;
+  }
+
   const prompt = `
     You are an expert 3rd Grade ELA teacher.
     
     **TASK**: Create an ELA worksheet with exactly ${totalQuestions} questions.
     
+    ${passageContextInstruction}
+
     **TARGET AUDIENCE**: 3rd Grade students (Age 8-9). 
     - Use appropriate vocabulary (Lexile 450L-800L).
     - Sentences should be simple and clear.
 
     **PASSAGE LENGTH PREFERENCE**:
     - ${lengthInstruction}
+
+    ${nameInstruction}
 
     **STANDARDS REQUESTED**: 
     ${config.selectedStandards.map(s => {
@@ -474,6 +510,8 @@ export const generateWorksheetContent = async (config: GenerationConfig): Promis
   }
 
   // Shuffle the groups so standards are mixed
+  // BUT: If extending existing passage, maybe don't shuffle? 
+  // Actually shuffling is fine as long as they are grouped.
   const shuffledGroups = shuffleGroups(groupedQuestions);
 
   // Flatten back to single array

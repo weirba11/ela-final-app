@@ -2,19 +2,20 @@
 import React from 'react';
 import { AVAILABLE_STANDARDS, CATEGORY_COLORS } from '../constants';
 import { GenerationConfig, QuestionType, Question } from '../types';
-import { BookOpen, Check, RefreshCw, FileText, AlertCircle, Layout, Type, Users, Settings, Plus, X, Trash2, Upload, ChevronDown, ChevronRight, FileSpreadsheet, AlignLeft } from 'lucide-react';
+import { BookOpen, Check, RefreshCw, FileText, AlertCircle, Layout, Type, Users, Settings, Plus, X, Trash2, Upload, ChevronDown, ChevronRight, FileSpreadsheet, AlignLeft, ListPlus, Link2 } from 'lucide-react';
 
 interface SidebarProps {
   config: GenerationConfig;
   setConfig: React.Dispatch<React.SetStateAction<GenerationConfig>>;
   onGenerate: () => void;
+  onAddToWorksheet: (extendLastPassage: boolean) => void;
   isGenerating: boolean;
   onAddQuestion: (q: Question) => void;
   onExportCSV: () => void;
   hasData: boolean;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate, isGenerating, onAddQuestion, onExportCSV, hasData }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate, onAddToWorksheet, isGenerating, onAddQuestion, onExportCSV, hasData }) => {
 
   // Custom Question Modal State
   const [isModalOpen, setIsModalOpen] = React.useState(false);
@@ -30,6 +31,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
   
   // Expanded State for Subcategories
   const [expandedStandards, setExpandedStandards] = React.useState<string[]>([]);
+  
+  // State for Extend Passage
+  const [extendLastPassage, setExtendLastPassage] = React.useState(false);
 
   const toggleStandard = (id: string) => {
     setConfig(prev => {
@@ -219,10 +223,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
           {/* Student Names Config */}
           <div>
              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                <Users size={16} /> Student Names (Optional)
+                <Users size={16} /> Student Names (Fiction Only)
              </label>
              <textarea
-                placeholder="Enter names separated by commas or new lines. These will appear in word problems."
+                placeholder="Enter names separated by commas. These will be used for Fiction stories or math problems."
                 value={config.studentNames || ''}
                 onChange={(e) => setConfig(prev => ({...prev, studentNames: e.target.value}))}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-xs focus:ring-brand-500 focus:border-brand-500 min-h-[60px]"
@@ -483,51 +487,85 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
       {/* Footer Action */}
       <div className="p-5 border-t border-gray-200 bg-gray-50 flex flex-col gap-3">
         
-        {/* Add Custom Question Button */}
-        <button
-            onClick={handleOpenModal}
-            disabled={isGenerating}
-            className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg border-2 border-dashed border-brand-300 text-brand-700 font-semibold hover:bg-brand-50 hover:border-brand-400 transition-all"
-        >
-            <Plus size={18} />
-            <span>Add Custom Question</span>
-        </button>
-
-        {hasData && (
+        {/* Top Row: Add Custom / Export */}
+        <div className="flex gap-2">
             <button
-                onClick={onExportCSV}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg border border-green-200 bg-green-50 text-green-700 font-semibold hover:bg-green-100 hover:border-green-300 transition-all"
+                onClick={handleOpenModal}
+                disabled={isGenerating}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg border-2 border-dashed border-brand-300 text-brand-700 font-semibold hover:bg-brand-50 hover:border-brand-400 transition-all text-xs"
             >
-                <FileSpreadsheet size={18} />
-                <span>Export to CSV</span>
+                <Plus size={16} />
+                <span>Custom Q</span>
             </button>
-        )}
 
-        <button
-          onClick={onGenerate}
-          disabled={isGenerating || config.selectedStandards.length === 0}
-          className={`
-            w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg text-white font-semibold shadow-md transition-all
-            ${isGenerating 
-              ? 'bg-gray-400 cursor-not-allowed' 
-              : config.selectedStandards.length === 0 
-                ? 'bg-gray-300 cursor-not-allowed'
-                : 'bg-brand-600 hover:bg-brand-700 hover:shadow-lg active:transform active:scale-95'
-            }
-          `}
-        >
-          {isGenerating ? (
-            <>
-              <RefreshCw size={18} className="animate-spin" />
-              <span>Creating...</span>
-            </>
-          ) : (
-            <>
-              <FileText size={18} />
-              <span>Generate PDF ({totalQuestions} Qs)</span>
-            </>
-          )}
-        </button>
+            {hasData && (
+                <button
+                    onClick={onExportCSV}
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg border border-green-200 bg-green-50 text-green-700 font-semibold hover:bg-green-100 hover:border-green-300 transition-all text-xs"
+                >
+                    <FileSpreadsheet size={16} />
+                    <span>CSV</span>
+                </button>
+            )}
+        </div>
+
+        <hr className="border-gray-200" />
+        
+        {/* Bottom Row: Generation Actions */}
+        <div className="flex flex-col gap-2">
+            {/* Add To Worksheet (Append) */}
+            {hasData && (
+                <div className="flex flex-col gap-2 bg-blue-50 p-2 rounded-lg border border-blue-100">
+                     {/* Extend Last Passage Option */}
+                    <label className="flex items-center gap-2 px-1 cursor-pointer select-none">
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${extendLastPassage ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-300'}`}>
+                             {extendLastPassage && <Check size={10} className="text-white" />}
+                        </div>
+                        <input type="checkbox" className="hidden" checked={extendLastPassage} onChange={(e) => setExtendLastPassage(e.target.checked)} />
+                        <span className="text-[10px] font-semibold text-blue-800 flex items-center gap-1">
+                            <Link2 size={10} /> Extend Previous Passage?
+                        </span>
+                    </label>
+
+                    <button
+                        onClick={() => onAddToWorksheet(extendLastPassage)}
+                        disabled={isGenerating || config.selectedStandards.length === 0}
+                        className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded bg-blue-600 text-white hover:bg-blue-700 font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs shadow-sm"
+                    >
+                         {isGenerating ? <RefreshCw size={14} className="animate-spin" /> : <ListPlus size={16} />}
+                         <span>Append ({totalQuestions} Qs)</span>
+                    </button>
+                </div>
+            )}
+
+            {/* Generate New (Replace) */}
+            <button
+              onClick={onGenerate}
+              disabled={isGenerating || config.selectedStandards.length === 0}
+              className={`
+                w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg text-white font-semibold shadow-md transition-all
+                ${isGenerating 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : config.selectedStandards.length === 0 
+                    ? 'bg-gray-300 cursor-not-allowed'
+                    : 'bg-brand-600 hover:bg-brand-700 hover:shadow-lg active:transform active:scale-95'
+                }
+              `}
+            >
+              {isGenerating ? (
+                <>
+                  <RefreshCw size={18} className="animate-spin" />
+                  <span>Creating...</span>
+                </>
+              ) : (
+                <>
+                  <FileText size={18} />
+                  <span>{hasData ? "Generate NEW PDF" : "Generate PDF"} ({totalQuestions} Qs)</span>
+                </>
+              )}
+            </button>
+        </div>
+
         {config.selectedStandards.length === 0 && (
             <p className="text-center text-xs text-red-500 mt-0 flex items-center justify-center gap-1">
                 <AlertCircle size={12} /> Select at least one standard

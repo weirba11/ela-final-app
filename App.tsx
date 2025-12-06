@@ -45,6 +45,56 @@ const App: React.FC = () => {
     }
   };
 
+  const handleAddToWorksheet = async (extendLastPassage: boolean) => {
+      setIsGenerating(true);
+      setError(null);
+      try {
+          let existingPassageContext = undefined;
+          
+          // If extending, find the last passage info
+          if (extendLastPassage && worksheetData && worksheetData.questions.length > 0) {
+              const lastQ = worksheetData.questions[worksheetData.questions.length - 1];
+              if (lastQ.visualInfo?.passageContent && lastQ.visualInfo?.passageTitle) {
+                  existingPassageContext = {
+                      title: lastQ.visualInfo.passageTitle,
+                      content: lastQ.visualInfo.passageContent
+                  };
+              }
+          }
+
+          const newData = await generateWorksheetContent(config, existingPassageContext);
+          
+          setWorksheetData(prev => {
+              if (!prev) {
+                  // If no previous worksheet, use the new data entirely
+                  if (config.titleMode === 'custom' && config.customTitle.trim() !== '') {
+                      newData.title = config.customTitle;
+                  }
+                  return newData;
+              }
+
+              // Append new questions to existing ones
+              // We re-ID the new questions to ensure uniqueness just in case
+              const startingId = prev.questions.length > 0 ? Math.max(...prev.questions.map(q => q.id)) + 1 : Date.now();
+              const newQuestions = newData.questions.map((q, idx) => ({
+                  ...q,
+                  id: startingId + idx
+              }));
+
+              return {
+                  ...prev,
+                  questions: [...prev.questions, ...newQuestions]
+              };
+          });
+
+      } catch (err: any) {
+          console.error(err);
+          setError(err.message || "Failed to add questions. Please try again.");
+      } finally {
+          setIsGenerating(false);
+      }
+  };
+
   const handleExportCSV = () => {
     if (!worksheetData) return;
     const headers = ["Question #", "Question Text", "Answer 1", "Answer 2", "Answer 3", "Answer 4", "Correct Answer"];
@@ -273,6 +323,7 @@ const App: React.FC = () => {
            config={config} 
            setConfig={setConfig} 
            onGenerate={handleGenerate}
+           onAddToWorksheet={handleAddToWorksheet}
            isGenerating={isGenerating}
            onAddQuestion={handleAddCustomQuestion}
            onExportCSV={handleExportCSV}
