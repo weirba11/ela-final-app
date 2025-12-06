@@ -283,11 +283,15 @@ const STANDARD_DETAILS: Record<string, string> = {
     - **Building Over Time**: Describe how each successive part builds on earlier sections.
     - **Structure Help**: Explain how structure develops plot, characters, setting, and conflict/resolution.
 
-    **VISUAL REQUIREMENT**:
+    **VISUAL REQUIREMENT (CRITICAL POETRY RULES)**:
     - **CRITICAL**: The 'passageContent' MUST be clearly divided.
     - **Stories**: Use headers like "**CHAPTER 1: [Title]**" and "**CHAPTER 2: [Title]**".
     - **Dramas**: Use headers like "**SCENE 1**" and "**SCENE 2**" with stage directions.
-    - **Poems**: DO NOT LABEL STANZAS (e.g. do not write "**Stanza 1**"). Instead, just separate the stanzas with clear double spacing (blank lines). The questions can still ask about "Stanza 1" or "Stanza 2", but the text itself should not explicitly label them.
+    - **Poems**:
+       1. **VISUAL LOOK**: It MUST look like a poem (vertical column), NOT a paragraph.
+       2. **LINE BREAKS**: You MUST use a single newline character (\\n) at the end of EVERY line of verse. Do NOT write lines as run-on sentences.
+       3. **STANZA BREAKS**: Use double newlines (\\n\\n) to separate stanzas.
+       4. **NO LABELS**: DO NOT LABEL STANZAS (e.g. do not write "**Stanza 1**"). Just use the whitespace.
 
     **OUTPUT CATEGORIES**:
     1. **Identify Terms**: Label parts correctly (e.g., "Which part of the text is this?"). (DOK 1)
@@ -367,6 +371,17 @@ export const generateWorksheetContent = async (config: GenerationConfig, existin
       `;
   }
 
+  let topicInstruction = "";
+  if (config.customTopic && config.customTopic.trim().length > 0) {
+      topicInstruction = `
+        **USER TOPIC REQUEST (HIGHEST PRIORITY)**:
+        - The user EXPLICITLY requested the content be about: "${config.customTopic.trim()}".
+        - **Fiction (RL)**: Use this as the core plot/theme.
+        - **Non-Fiction (RI)**: Use this as the main topic.
+        - Ignore other topic randomization rules if they conflict with this specific request.
+      `;
+  }
+
   const prompt = `
     You are an expert 3rd Grade ELA teacher.
     
@@ -382,6 +397,7 @@ export const generateWorksheetContent = async (config: GenerationConfig, existin
     - ${lengthInstruction}
 
     ${nameInstruction}
+    ${topicInstruction}
 
     **STANDARDS REQUESTED**: 
     ${config.selectedStandards.map(s => {
@@ -436,9 +452,9 @@ export const generateWorksheetContent = async (config: GenerationConfig, existin
        - Bold: **word**
        - Italics: *word*
     
-    8. **PARAGRAPH FORMATTING (CRITICAL)**:
-       - You **MUST** use double newlines (\\n\\n) to separate paragraphs in your 'passageContent'.
-       - Do NOT output a single giant block of text. Break it up into 2-4 readable paragraphs.
+    8. **PARAGRAPH & POETRY FORMATTING (CRITICAL)**:
+       - **Prose**: You **MUST** use double newlines (\\n\\n) to separate paragraphs in your 'passageContent'. Break text into 2-4 readable paragraphs.
+       - **Poetry**: If generating a poem, you **MUST** use a single newline (\\n) at the end of EVERY line of verse so it renders as a vertical column, NOT a paragraph. Use double newlines (\\n\\n) between stanzas.
 
     **OUTPUT**:
     Return ONLY valid JSON matching the schema.
@@ -569,7 +585,9 @@ export const generateSingleQuestion = async (
             - **NO GIVEAWAYS**: If testing vocabulary, use context clues in the passage, do not define it explicitly next to the word.
             - **Formatting**: If the question asks about a bold/italicized word, you MUST apply that Markdown formatting to the word in the 'passageContent'.
             - **Visual Info**: You MUST populate 'visualInfo' with type='text-passage', 'passageTitle', and 'passageContent'.
-            - **Paragraphs**: Use double newlines (\\n\\n) for paragraphs.
+            - **Formatting (Paragraphs/Poems)**: 
+               - Use double newlines (\\n\\n) for paragraphs.
+               - For POEMS, use single newline (\\n) for line breaks and double (\\n\\n) for stanza breaks.
             
             Return ONLY the Question JSON object.
         `;
@@ -628,7 +646,9 @@ export const regenerateQuestionGroup = async (
            - If Fiction (RL), use diverse characters and settings (School, Fantasy, Space, Ocean).
         7. **NO GIVEAWAYS**: Do NOT explicit define vocabulary words in the text immediately after using them. Use context clues.
         8. **Visual Type**: Ensure 'visualInfo.type' is set to 'text-passage' if creating a story/article.
-        9. **Paragraphs**: Use double newlines (\\n\\n) to separate paragraphs.
+        9. **Formatting (Paragraphs/Poems)**:
+           - Use double newlines (\\n\\n) for paragraphs.
+           - For POEMS, use single newline (\\n) for line breaks and double (\\n\\n) for stanza breaks.
         
         **OUTPUT**:
         Return a valid JSON object with a "questions" array containing ${count} items.
