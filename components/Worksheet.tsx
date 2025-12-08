@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { WorksheetData, GenerationConfig, Question, VisualData } from '../types';
 import { Printer, RefreshCw, Download, ArrowUp, ArrowDown, BookOpen, Image, Upload, Sparkles, X, Check, Trash2 } from 'lucide-react';
@@ -130,7 +131,7 @@ export const Worksheet: React.FC<WorksheetProps> = ({
   };
 
   return (
-    <div className="relative w-full h-full overflow-auto bg-gray-100 p-4 md:p-8 print:p-0 print:bg-white print:overflow-visible">
+    <div className="relative w-full h-full overflow-auto bg-gray-100 p-4 md:p-8 print:p-0 print:bg-white print:overflow-visible custom-scrollbar">
       <button 
         onClick={handlePrint}
         className={`fixed bottom-8 right-8 z-50 text-white p-4 rounded-full shadow-xl no-print flex items-center gap-2 transition-all active:scale-95 bg-brand-600 hover:bg-brand-700`}
@@ -141,12 +142,24 @@ export const Worksheet: React.FC<WorksheetProps> = ({
 
       <div 
         id="worksheet-container" 
-        className="mx-auto bg-white shadow-2xl print:shadow-none w-[8.5in] min-h-[11in] p-[0.5in] print:w-full print:max-w-none print:mx-0 print:p-0 relative"
+        className="mx-auto bg-white shadow-2xl print:shadow-none w-[8.5in] min-h-[11in] p-[0.5in] print:w-full print:max-w-none print:mx-0 print:p-0 relative overflow-hidden"
       >
         <div className="absolute inset-0 pointer-events-none z-0 no-print" aria-hidden="true">
             <div className="absolute top-2 -right-32 w-28 text-xs text-red-500 italic opacity-70">&larr; Page bottom (11")</div>
             <div className="w-full h-full opacity-50" style={{ backgroundImage: 'repeating-linear-gradient(to bottom, transparent, transparent calc(11in - 1px), #ef4444 calc(11in - 1px), #ef4444 11in)' }} />
         </div>
+
+        {/* Background Image Layer */}
+        {config.backgroundImage && (
+            <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none print:fixed print:inset-0 print:h-full print:w-full">
+                <img 
+                    src={config.backgroundImage} 
+                    className="w-full h-full object-cover"
+                    style={{ opacity: config.backgroundOpacity ?? 0.15 }}
+                    alt=""
+                />
+            </div>
+        )}
 
         <div className="relative z-10">
             <header className="mb-4 border-b-2 border-black pb-1">
@@ -371,11 +384,24 @@ export const Worksheet: React.FC<WorksheetProps> = ({
       </div>
 
       {config.includeAnswerKey && (
-        <div className="mx-auto bg-white shadow-2xl print:shadow-none w-[8.5in] min-h-[11in] p-[0.5in] mt-8 print:mt-0 print:w-full print:max-w-none print:mx-0 print-break-before break-before-page print:p-0 relative">
-             <header className="mb-4 border-b-2 border-black pb-1">
+        <div className="mx-auto bg-white shadow-2xl print:shadow-none w-[8.5in] min-h-[11in] p-[0.5in] mt-8 print:mt-0 print:w-full print:max-w-none print:mx-0 print-break-before break-before-page print:p-0 relative overflow-hidden">
+             
+             {/* Background Image Layer for Key */}
+             {config.backgroundImage && (
+                <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none print:fixed print:inset-0 print:h-full print:w-full">
+                    <img 
+                        src={config.backgroundImage} 
+                        className="w-full h-full object-cover"
+                        style={{ opacity: config.backgroundOpacity ?? 0.15 }}
+                        alt=""
+                    />
+                </div>
+            )}
+
+             <header className="mb-4 border-b-2 border-black pb-1 relative z-10">
                 <h1 className="font-serif text-lg font-bold text-black text-center uppercase tracking-wider">Answer Key</h1>
              </header>
-             <div className="grid grid-cols-2 gap-x-8 gap-y-1">
+             <div className="grid grid-cols-2 gap-x-8 gap-y-1 relative z-10">
                 {data.questions.map((q, index) => {
                     let displayAnswer = q.correctAnswer;
                     if (q.type === 'multiple-choice' && q.options) {

@@ -1,4 +1,5 @@
 
+
 export interface Standard {
   id: string;
   code: string;
@@ -144,4 +145,7 @@ export interface GenerationConfig {
   fontSize: 'small' | 'medium' | 'large';
   passageLength: 'short' | 'medium' | 'long';
   customTopic?: string;
+  // Background
+  backgroundImage?: string;
+  backgroundOpacity?: number;
 }

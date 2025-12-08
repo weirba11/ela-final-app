@@ -1,9 +1,11 @@
 
+
 import React, { useState } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Worksheet } from './components/Worksheet';
 import { GenerationConfig, QuestionType, WorksheetData, Question, VisualData } from './types';
 import { generateWorksheetContent, generateSingleQuestion, regenerateQuestionGroup, generateIllustration } from './services/geminiService';
+import { Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 
 const App: React.FC = () => {
   const [config, setConfig] = useState<GenerationConfig>({
@@ -20,13 +22,19 @@ const App: React.FC = () => {
     includeDate: true,
     fontSize: 'medium',
     passageLength: 'medium',
-    customTopic: ''
+    customTopic: '',
+    backgroundImage: undefined,
+    backgroundOpacity: 0.15
   });
 
   const [worksheetData, setWorksheetData] = useState<WorksheetData | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Sidebar State
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
 
   const handleGenerate = async () => {
     setIsGenerating(true);
@@ -38,6 +46,8 @@ const App: React.FC = () => {
           data.title = config.customTitle;
       }
       setWorksheetData(data);
+      // Close sidebar on mobile after generating
+      setIsMobileMenuOpen(false);
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Failed to generate worksheet. Please try again.");
@@ -87,6 +97,8 @@ const App: React.FC = () => {
                   questions: [...prev.questions, ...newQuestions]
               };
           });
+          
+          setIsMobileMenuOpen(false);
 
       } catch (err: any) {
           console.error(err);
@@ -130,6 +142,7 @@ const App: React.FC = () => {
           if (!prev) return { title: config.customTitle || "Custom Worksheet", instructions: "Answer the questions below.", questions: [question] };
           return { ...prev, questions: [...prev.questions, question] };
       });
+      setIsMobileMenuOpen(false);
   };
 
   const handleRegenerateQuestion = async (index: number) => {
@@ -334,24 +347,71 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden">
-      <div className="w-full md:w-auto flex-shrink-0 h-full bg-white z-20 absolute md:relative transition-transform transform md:transform-none -translate-x-full md:translate-x-0 print:hidden">
-         <Sidebar 
-           config={config} 
-           setConfig={setConfig} 
-           onGenerate={handleGenerate}
-           onAddToWorksheet={handleAddToWorksheet}
-           isGenerating={isGenerating}
-           onAddQuestion={handleAddCustomQuestion}
-           onExportCSV={handleExportCSV}
-           hasData={!!worksheetData}
-         />
+    <div className="flex h-screen w-full overflow-hidden relative">
+      {/* Mobile Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+            className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm md:hidden transition-opacity animate-in fade-in"
+            onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Sidebar Container - Responsive Drawer with Desktop Collapse */}
+      <div className={`
+        fixed inset-y-0 left-0 z-40 bg-white shadow-2xl h-full border-r border-gray-200
+        transform transition-all duration-300 ease-in-out print:hidden
+        ${isMobileMenuOpen ? 'translate-x-0 w-[300px]' : '-translate-x-full'} 
+        md:translate-x-0 md:shadow-none
+        ${isDesktopSidebarOpen ? 'md:w-96' : 'md:w-0 md:border-r-0'}
+      `}>
+          <div className="w-full h-full overflow-hidden">
+             {/* Force width to prevent content reflow during collapse animation */}
+             <div className="w-[300px] md:w-96 h-full">
+                <Sidebar 
+                  config={config} 
+                  setConfig={setConfig} 
+                  onGenerate={handleGenerate}
+                  onAddToWorksheet={handleAddToWorksheet}
+                  isGenerating={isGenerating}
+                  onAddQuestion={handleAddCustomQuestion}
+                  onExportCSV={handleExportCSV}
+                  hasData={!!worksheetData}
+                  onCloseMobile={() => setIsMobileMenuOpen(false)}
+                />
+             </div>
+          </div>
       </div>
-      <main className="flex-1 h-full relative flex flex-col bg-gray-100">
-        <div className="md:hidden p-4 bg-white shadow-sm flex items-center justify-between no-print">
-            <span className="font-bold text-brand-600">educationalresource.org</span>
-            <span className="text-xs text-gray-500">Use Desktop for best experience</span>
+
+      <main className="flex-1 h-full relative flex flex-col bg-gray-100 w-full overflow-hidden">
+        {/* Mobile Header with Hamburger Menu */}
+        <div className="md:hidden p-4 bg-white shadow-sm flex items-center justify-between no-print z-20 relative border-b border-gray-200">
+            <div className="flex items-center gap-3">
+                <button 
+                    onClick={() => setIsMobileMenuOpen(true)}
+                    className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                    aria-label="Open Settings"
+                >
+                    <Menu size={24} />
+                </button>
+                <span className="font-bold text-brand-600 truncate">Worksheet Gen</span>
+            </div>
+            <span className="text-[10px] text-gray-400 font-medium">v1.1</span>
         </div>
+
+        {/* Desktop Collapse Toggle */}
+        <div className="hidden md:block absolute top-4 left-4 z-20 print:hidden">
+            <button
+                onClick={() => setIsDesktopSidebarOpen(!isDesktopSidebarOpen)}
+                className={`
+                    p-2 bg-white border border-gray-200 shadow-md rounded-lg text-gray-600 hover:text-brand-600 hover:bg-gray-50 transition-all
+                    ${!isDesktopSidebarOpen ? 'opacity-100' : 'opacity-50 hover:opacity-100'}
+                `}
+                title={isDesktopSidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
+            >
+                {isDesktopSidebarOpen ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} />}
+            </button>
+        </div>
+
         {error && (
             <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg shadow-xl z-50 no-print flex flex-col gap-2 items-center">
                 <div className="flex items-center gap-2 font-semibold">

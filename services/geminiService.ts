@@ -668,7 +668,7 @@ export const regenerateQuestionGroup = async (
     return data.questions;
 };
 
-export const generateIllustration = async (prompt: string): Promise<string> => {
+export const generateIllustration = async (prompt: string, aspectRatio: string = "16:9"): Promise<string> => {
     if (!import.meta.env.VITE_API_KEY) throw new Error("API Key missing");
 
     const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_API_KEY });
@@ -684,7 +684,7 @@ export const generateIllustration = async (prompt: string): Promise<string> => {
                 },
                 config: {
                     imageConfig: {
-                        aspectRatio: "16:9" // Suitable for worksheets
+                        aspectRatio: aspectRatio 
                     }
                 }
             });

@@ -2,7 +2,8 @@
 import React from 'react';
 import { AVAILABLE_STANDARDS, CATEGORY_COLORS } from '../constants';
 import { GenerationConfig, QuestionType, Question } from '../types';
-import { BookOpen, Check, RefreshCw, FileText, AlertCircle, Layout, Type, Users, Settings, Plus, X, Trash2, Upload, ChevronDown, ChevronRight, FileSpreadsheet, AlignLeft, ListPlus, Link2, PenTool } from 'lucide-react';
+import { generateIllustration } from '../services/geminiService';
+import { BookOpen, Check, RefreshCw, FileText, AlertCircle, Layout, Type, Users, Settings, Plus, X, Trash2, Upload, ChevronDown, ChevronRight, FileSpreadsheet, AlignLeft, ListPlus, Link2, PenTool, Image as ImageIcon, Sliders, Sparkles } from 'lucide-react';
 
 interface SidebarProps {
   config: GenerationConfig;
@@ -13,9 +14,10 @@ interface SidebarProps {
   onAddQuestion: (q: Question) => void;
   onExportCSV: () => void;
   hasData: boolean;
+  onCloseMobile?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate, onAddToWorksheet, isGenerating, onAddQuestion, onExportCSV, hasData }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate, onAddToWorksheet, isGenerating, onAddQuestion, onExportCSV, hasData, onCloseMobile }) => {
 
   // Custom Question Modal State
   const [isModalOpen, setIsModalOpen] = React.useState(false);
@@ -34,6 +36,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
   
   // State for Extend Passage
   const [extendLastPassage, setExtendLastPassage] = React.useState(false);
+
+  // Background AI State
+  const [bgMode, setBgMode] = React.useState<'upload' | 'ai'>('upload');
+  const [bgPrompt, setBgPrompt] = React.useState('');
+  const [bgIsBW, setBgIsBW] = React.useState(true);
+  const [isGeneratingBg, setIsGeneratingBg] = React.useState(false);
 
   const toggleStandard = (id: string) => {
     setConfig(prev => {
@@ -137,6 +145,38 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
     }
   };
 
+  const handleBackgroundUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setConfig(prev => ({ ...prev, backgroundImage: reader.result as string }));
+        };
+        reader.readAsDataURL(file);
+    }
+  };
+
+  const handleGenerateBg = async () => {
+    if (!bgPrompt.trim()) return;
+    setIsGeneratingBg(true);
+    try {
+        let prompt = bgPrompt;
+        if (bgIsBW) {
+            prompt += ", seamless pattern, black and white line art, coloring book style, high contrast, white background, no shading, clean outlines";
+        } else {
+            prompt += ", seamless pattern, soft pastel colors, watermark style, faded, suitable for document background";
+        }
+        
+        // Use 3:4 for vertical page background
+        const imageUrl = await generateIllustration(prompt, "3:4");
+        setConfig(prev => ({ ...prev, backgroundImage: imageUrl }));
+    } catch (e) {
+        console.error("Failed to generate background", e);
+    } finally {
+        setIsGeneratingBg(false);
+    }
+  };
+
   const submitCustomQuestion = () => {
     if (!customQText.trim()) return;
 
@@ -174,18 +214,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
 
   return (
     <>
-    <aside className="w-full md:w-96 bg-white border-r border-gray-200 flex flex-col h-full no-print shadow-lg z-10">
-      <div className="p-5 border-b border-gray-100 bg-brand-50">
-        <div className="flex items-center gap-2 mb-2">
-          <div className="bg-brand-600 p-2 rounded-lg text-white">
-            <BookOpen size={20} />
-          </div>
-          <h1 className="text-xl font-bold text-gray-800 tracking-tight">Worksheet Gen</h1>
+    <aside className="w-full h-full bg-white flex flex-col no-print custom-scrollbar">
+      <div className="p-5 border-b border-gray-100 bg-brand-50 relative flex-shrink-0">
+        <div className="flex justify-between items-start mb-2">
+            <div className="flex items-center gap-2">
+                <div className="bg-brand-600 p-2 rounded-lg text-white">
+                    <BookOpen size={20} />
+                </div>
+                <h1 className="text-xl font-bold text-gray-800 tracking-tight">Worksheet Gen</h1>
+            </div>
+            {onCloseMobile && (
+                <button 
+                    onClick={onCloseMobile}
+                    className="md:hidden -mr-2 -mt-2 p-2 text-gray-500 hover:bg-brand-100 hover:text-brand-700 rounded-full transition-colors"
+                >
+                    <X size={20} />
+                </button>
+            )}
         </div>
         <p className="text-sm text-brand-700">Select standards and quantity.</p>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto p-5 space-y-6">
         
         {/* Configuration Section */}
         <section className="space-y-5">
@@ -247,6 +297,97 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
                 onChange={(e) => setConfig(prev => ({...prev, studentNames: e.target.value}))}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-xs focus:ring-brand-500 focus:border-brand-500 min-h-[50px]"
              />
+          </div>
+
+          {/* Background Image Config */}
+          <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                <ImageIcon size={16} /> Page Background
+              </label>
+
+              {/* Mode Toggle */}
+              <div className="flex rounded-md shadow-sm mb-2">
+                  <button
+                      onClick={() => setBgMode('upload')}
+                      className={`flex-1 px-2 py-1.5 text-xs font-medium rounded-l-md border ${bgMode === 'upload' ? 'bg-gray-100 text-gray-900 border-gray-300 font-bold' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                  >
+                      Upload
+                  </button>
+                  <button
+                      onClick={() => setBgMode('ai')}
+                      className={`flex-1 px-2 py-1.5 text-xs font-medium rounded-r-md border-t border-b border-r ${bgMode === 'ai' ? 'bg-gray-100 text-gray-900 border-gray-300 font-bold' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                  >
+                      AI Generate
+                  </button>
+              </div>
+              
+              <div className="flex flex-col gap-2">
+                  {bgMode === 'upload' ? (
+                      <div className="flex gap-2">
+                        <label className="flex-1 cursor-pointer border border-gray-300 bg-white rounded-md px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 flex items-center justify-center gap-2 transition-colors">
+                            <Upload size={14} />
+                            <span>{config.backgroundImage ? "Change Image" : "Upload Image"}</span>
+                            <input type="file" accept="image/*" onChange={handleBackgroundUpload} className="hidden" />
+                        </label>
+                      </div>
+                  ) : (
+                      <div className="space-y-2 p-2 bg-gray-50 rounded border border-gray-200">
+                          <textarea 
+                             className="w-full text-xs border border-gray-300 rounded p-2 h-16 resize-none focus:ring-1 focus:ring-brand-500"
+                             placeholder="Describe pattern (e.g. stars, pencils...)"
+                             value={bgPrompt}
+                             onChange={(e) => setBgPrompt(e.target.value)}
+                          />
+                          <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                              <input 
+                                type="checkbox" 
+                                checked={bgIsBW} 
+                                onChange={(e) => setBgIsBW(e.target.checked)}
+                                className="w-3.5 h-3.5 text-brand-600 border-gray-300 rounded"
+                              />
+                              Black & White (Line Art)
+                          </label>
+                          <button 
+                             onClick={handleGenerateBg}
+                             disabled={isGeneratingBg || !bgPrompt.trim()}
+                             className="w-full flex items-center justify-center gap-2 py-1.5 px-3 bg-brand-600 text-white rounded text-xs font-semibold hover:bg-brand-700 disabled:opacity-50 transition-colors"
+                          >
+                             {isGeneratingBg ? <RefreshCw size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                             Generate Background
+                          </button>
+                      </div>
+                  )}
+
+                  {config.backgroundImage && (
+                      <div className="bg-gray-50 p-2 rounded border border-gray-200 space-y-2">
+                          <div className="flex justify-between items-center">
+                              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Adjust</span>
+                              <button 
+                                onClick={() => setConfig(prev => ({...prev, backgroundImage: undefined}))}
+                                className="text-[10px] text-red-500 hover:text-red-700 font-medium flex items-center gap-1"
+                              >
+                                  <Trash2 size={10} /> Remove
+                              </button>
+                          </div>
+                          
+                          <div>
+                              <div className="flex items-center justify-between mb-1">
+                                  <span className="text-[10px] font-medium text-gray-500 flex items-center gap-1"><Sliders size={10} /> Opacity</span>
+                                  <span className="text-[10px] font-bold text-gray-700">{Math.round((config.backgroundOpacity || 0.15) * 100)}%</span>
+                              </div>
+                              <input 
+                                type="range" 
+                                min="0" 
+                                max="1" 
+                                step="0.05"
+                                value={config.backgroundOpacity ?? 0.15}
+                                onChange={(e) => setConfig(prev => ({...prev, backgroundOpacity: parseFloat(e.target.value)}))}
+                                className="w-full h-1 bg-gray-300 rounded-lg appearance-none cursor-pointer accent-brand-600"
+                              />
+                          </div>
+                      </div>
+                  )}
+              </div>
           </div>
 
           {/* Layout & Font Config */}
@@ -501,7 +642,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
       </div>
 
       {/* Footer Action */}
-      <div className="p-5 border-t border-gray-200 bg-gray-50 flex flex-col gap-3">
+      <div className="p-5 border-t border-gray-200 bg-gray-50 flex flex-col gap-3 flex-shrink-0">
         
         {/* Top Row: Add Custom / Export */}
         <div className="flex gap-2">
