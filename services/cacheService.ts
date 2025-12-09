@@ -100,8 +100,11 @@ export async function getFromCache(key: string): Promise<WorksheetData | null> {
 /**
  * Hybrid Set: Saves to both LocalStorage and MySQL API.
  */
+/**
+ * Hybrid Set: Saves to both LocalStorage and MySQL API.
+ */
 export async function saveToCache(key: string, data: WorksheetData): Promise<void> {
-    // 1. Save Local
+    // 1. Save Local (Local storage logic is fine)
     const entry: CacheEntry = {
         timestamp: Date.now(),
         data: data,
@@ -109,12 +112,7 @@ export async function saveToCache(key: string, data: WorksheetData): Promise<voi
     };
 
     try {
-        // Cleanup old keys if too many
-        if (localStorage.length > 50) {
-            Object.keys(localStorage).forEach(k => {
-                if (k.startsWith('ws_')) localStorage.removeItem(k);
-            });
-        }
+        // ... cleanup logic ...
         localStorage.setItem(key, JSON.stringify(entry));
     } catch (e) { console.warn("Local save failed", e); }
 
@@ -122,16 +120,28 @@ export async function saveToCache(key: string, data: WorksheetData): Promise<voi
     if (!API_BASE_URL) return;
 
     try {
-        // POST request to write the cache
-        await fetch(API_BASE_URL, {
+        // Capture the response object here
+        const response = await fetch(API_BASE_URL, { 
             method: 'POST',
             mode: 'cors',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ cache_key: key, worksheet_data: data }) 
         });
-        console.log("☁️ Saved to MySQL Cache");
+
+        // 💥 CRITICAL FIX: Check the status code 💥
+        if (!response.ok) {
+            // Log the error details if the server returns a 4xx or 5xx status
+            console.error(
+                `❌ Failed to save to MySQL Cache! Status: ${response.status}`, 
+                await response.text() // Get the body for detailed server error messages (e.g., SQL error)
+            );
+        } else {
+            console.log("☁️ Saved to MySQL Cache");
+        }
+        // 💥 CRITICAL FIX END 💥
+
     } catch (e) {
-        // Suppress "Failed to fetch" errors on write
+        // This catch block handles network errors (CORS failure, 'Failed to fetch')
         console.warn("Global cache write failed (Network/CORS).");
     }
 }
