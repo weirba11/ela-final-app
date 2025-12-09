@@ -147,7 +147,7 @@ const STANDARD_DETAILS: Record<string, string> = {
 };
 
 export const generateWorksheetContent = async (config: GenerationConfig, existingPassage?: { title: string, content: string }): Promise<WorksheetData> => {
-  if (!process.env.API_KEY) {
+  if (!import.meta.env.VITE_API_KEY) {
     throw new Error("API Key is missing.");
   }
 
@@ -163,7 +163,7 @@ export const generateWorksheetContent = async (config: GenerationConfig, existin
     return sum + (config.standardCounts[stdId] || 0);
   }, 0);
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_API_KEY });
 
   const lengthInstruction = {
       short: "100-150 words",
@@ -226,6 +226,26 @@ export const generateWorksheetContent = async (config: GenerationConfig, existin
 
   const data = robustJSONParse<WorksheetData>(text);
 
+  // --- PASSAGE NORMALIZATION ---
+  // Fixes issue where AI generates slightly different whitespace for the same passage,
+  // preventing the frontend from grouping them correctly.
+  const passageCanonicalMap = new Map<string, string>();
+
+  for (const q of data.questions) {
+    if (q.visualInfo?.passageContent) {
+        // Create a fingerprint for the passage (collapsed whitespace)
+        const fingerprint = q.visualInfo.passageContent.trim().replace(/\s+/g, ' ');
+        
+        // If we've seen this passage before (by fingerprint), use the stored instance string
+        if (passageCanonicalMap.has(fingerprint)) {
+            q.visualInfo.passageContent = passageCanonicalMap.get(fingerprint);
+            // Optionally sync title if needed, but strict content match is the key for grouping
+        } else {
+            passageCanonicalMap.set(fingerprint, q.visualInfo.passageContent);
+        }
+    }
+  }
+
   // --- SHUFFLING & GROUPING LOGIC ---
   const groupedQuestions: Question[][] = [];
   let currentGroup: Question[] = [];
@@ -235,6 +255,7 @@ export const generateWorksheetContent = async (config: GenerationConfig, existin
       const qPassage = q.visualInfo?.passageContent;
       
       if (qPassage) {
+         // Using the normalized strings, this equality check is now robust
          if (lastPassageContent === qPassage) {
              currentGroup.push(q);
          } else {
@@ -268,9 +289,9 @@ export const generateSingleQuestion = async (
     subcategories?: string[],
     existingPassage?: { title: string, content: string }
 ): Promise<Question> => {
-    if (!process.env.API_KEY) throw new Error("API Key missing");
+    if (!import.meta.env.VITE_API_KEY) throw new Error("API Key missing");
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_API_KEY });
     const standardDetail = STANDARD_DETAILS[standard] || "General practice";
     
     let prompt = "";
@@ -315,9 +336,9 @@ export const regenerateQuestionGroup = async (
     subcategories?: string[],
     passageLength: 'short' | 'medium' | 'long' = 'medium'
 ): Promise<Question[]> => {
-    if (!process.env.API_KEY) throw new Error("API Key missing");
+    if (!import.meta.env.VITE_API_KEY) throw new Error("API Key missing");
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_API_KEY });
     const standardDetail = STANDARD_DETAILS[standard] || "General practice";
     
     const lengthMap = {
@@ -348,13 +369,29 @@ export const regenerateQuestionGroup = async (
     });
 
     const data = robustJSONParse<{questions: Question[]}>(response.text!);
+    
+    // FORCE CONSISTENCY: Ensure all questions in this group share exactly the same passage string
+    if (data.questions.length > 0) {
+        const masterPassage = data.questions[0].visualInfo?.passageContent;
+        const masterTitle = data.questions[0].visualInfo?.passageTitle;
+        
+        if (masterPassage) {
+            data.questions.forEach(q => {
+                if (q.visualInfo) {
+                    q.visualInfo.passageContent = masterPassage;
+                    if (masterTitle) q.visualInfo.passageTitle = masterTitle;
+                }
+            });
+        }
+    }
+
     return data.questions;
 };
 
 export const generateIllustration = async (prompt: string, aspectRatio: string = "16:9"): Promise<string> => {
-    if (!process.env.API_KEY) throw new Error("API Key missing");
+    if (!import.meta.env.VITE_API_KEY) throw new Error("API Key missing");
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_API_KEY });
 
     // Use a simpler cache key for images
     const cacheKey = `img_cache_${aspectRatio}_${prompt.trim().toLowerCase().replace(/\s+/g, '_')}`;

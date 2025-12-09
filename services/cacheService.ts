@@ -1,10 +1,11 @@
 
 import { WorksheetData, GenerationConfig } from "../types";
 
-const CACHE_VERSION = 'v1.1';
+const CACHE_VERSION = 'v1.2';
 const CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 Hours
 
 // === HostGator MySQL API Endpoint ===
+// Ensure this URL is correct and supports CORS from your domain.
 const API_BASE_URL: string = 'https://educationalresource.org/worksheet_api/cache_api.php'; 
 
 interface CacheEntry {
@@ -69,12 +70,13 @@ export async function getFromCache(key: string): Promise<WorksheetData | null> {
     try {
         // GET request to read the cache
         const response = await fetch(`${API_BASE_URL}?key=${encodeURIComponent(key)}`, {
-            method: 'GET'
+            method: 'GET',
+            mode: 'cors', // Explicitly require CORS
+            headers: { 'Accept': 'application/json' }
         });
         
         if (response.status === 200) {
             console.log("✨ GLOBAL CACHE HIT (MySQL)! Cost saved.");
-            // The PHP script echoes the JSON data directly on success
             const data = await response.json() as WorksheetData;
             
             // Re-hydrate local cache so next time it is instant
@@ -88,7 +90,8 @@ export async function getFromCache(key: string): Promise<WorksheetData | null> {
             return data;
         }
     } catch (e) {
-        console.error("Error reading global cache via API:", e);
+        // Suppress "Failed to fetch" which occurs if API is down or blocked by CORS/Privacy blockers
+        console.warn("Global cache API unreachable (Network/CORS). Skipping.");
     }
 
     return null;
@@ -122,12 +125,13 @@ export async function saveToCache(key: string, data: WorksheetData): Promise<voi
         // POST request to write the cache
         await fetch(API_BASE_URL, {
             method: 'POST',
+            mode: 'cors',
             headers: { 'Content-Type': 'application/json' },
-            // Send the key and the raw worksheet data in the body
             body: JSON.stringify({ cache_key: key, worksheet_data: data }) 
         });
         console.log("☁️ Saved to MySQL Cache");
     } catch (e) {
-        console.error("Error writing global cache via API:", e);
+        // Suppress "Failed to fetch" errors on write
+        console.warn("Global cache write failed (Network/CORS).");
     }
 }
