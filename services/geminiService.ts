@@ -147,7 +147,7 @@ const STANDARD_DETAILS: Record<string, string> = {
 };
 
 export const generateWorksheetContent = async (config: GenerationConfig, existingPassage?: { title: string, content: string }): Promise<WorksheetData> => {
-  if (!process.env.API_KEY) {
+  if (!import.meta.env.VITE_API_KEY) {
     throw new Error("API Key is missing.");
   }
 
@@ -163,7 +163,7 @@ export const generateWorksheetContent = async (config: GenerationConfig, existin
     return sum + (config.standardCounts[stdId] || 0);
   }, 0);
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_API_KEY });
 
   const lengthInstruction = {
       short: "100-150 words",
@@ -268,9 +268,9 @@ export const generateSingleQuestion = async (
     subcategories?: string[],
     existingPassage?: { title: string, content: string }
 ): Promise<Question> => {
-    if (!process.env.API_KEY) throw new Error("API Key missing");
+    if (!import.meta.env.VITE_API_KEY) throw new Error("API Key missing");
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_API_KEY });
     const standardDetail = STANDARD_DETAILS[standard] || "General practice";
     
     let prompt = "";
@@ -315,9 +315,9 @@ export const regenerateQuestionGroup = async (
     subcategories?: string[],
     passageLength: 'short' | 'medium' | 'long' = 'medium'
 ): Promise<Question[]> => {
-    if (!process.env.API_KEY) throw new Error("API Key missing");
+    if (!import.meta.env.VITE_API_KEY) throw new Error("API Key missing");
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_API_KEY });
     const standardDetail = STANDARD_DETAILS[standard] || "General practice";
     
     const lengthMap = {
@@ -352,9 +352,9 @@ export const regenerateQuestionGroup = async (
 };
 
 export const generateIllustration = async (prompt: string, aspectRatio: string = "16:9"): Promise<string> => {
-    if (!process.env.API_KEY) throw new Error("API Key missing");
+    if (!import.meta.env.VITE_API_KEY) throw new Error("API Key missing");
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_API_KEY });
 
     // Use a simpler cache key for images
     const cacheKey = `img_cache_${aspectRatio}_${prompt.trim().toLowerCase().replace(/\s+/g, '_')}`;
