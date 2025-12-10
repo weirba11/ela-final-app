@@ -164,6 +164,33 @@ function getPromptHash(prompt: string): number {
     return Math.abs(prompt.trim().toLowerCase().split('').reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0));
 }
 
+// Semantic Normalization for Caching (Topics and Images)
+async function normalizePrompt(prompt: string): Promise<string> {
+  if (!API_KEY) return prompt;
+  // If prompt is very short, normalization is high value. If very long, maybe less so, but still useful for 'fuzzy' matching.
+  try {
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const result = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: `Task: Normalize the following input text (image prompt or topic) for semantic caching.
+Rules:
+1. Convert plural nouns to singular (e.g., "cats" -> "cat", "dogs" -> "dog", "stories" -> "story").
+2. Use common standard terms for synonyms (e.g., "feline" -> "cat", "pup" -> "dog"), but preserve distinct species (e.g., "tiger" stays "tiger").
+3. Preserve all descriptive adjectives (colors, size, emotions), actions, and style instructions (e.g., "black and white", "line art", "cartoon").
+4. Return ONLY the normalized text. Lowercase, no punctuation.
+
+Input: "${prompt}"`,
+      config: { temperature: 0.1, maxOutputTokens: 60 }
+    });
+    const normalized = result.text?.trim() || prompt;
+    // console.log(`[Cache Normalization] "${prompt}" -> "${normalized}"`);
+    return normalized;
+  } catch (e) {
+    console.warn("Prompt normalization failed, using raw.", e);
+    return prompt;
+  }
+}
+
 // Detailed prompts for Standards (Aggregated from generators)
 const STANDARD_DETAILS: Record<string, string> = {
     ...RI_PROMPTS,
@@ -177,8 +204,19 @@ export const generateWorksheetContent = async (config: GenerationConfig, existin
     throw new Error("API Key is missing. Please check your configuration.");
   }
 
+  // 0. Normalize Topic for Semantic Caching
+  // We create a "cache-specific" config that uses the normalized topic.
+  // This ensures "cats" and "cat" map to the same cache entry.
+  let cacheConfig = { ...config };
+  
+  if (config.customTopic && config.customTopic.trim().length > 0) {
+      const normalizedTopic = await normalizePrompt(config.customTopic);
+      cacheConfig.customTopic = normalizedTopic;
+  }
+
   // 1. Check Cache (Hybrid: Local -> Server)
-  const cacheKey = getCacheKey(config, existingPassage);
+  // We check using the NORMALIZED topic, so future similar requests hit this same cache.
+  const cacheKey = getCacheKey(cacheConfig, existingPassage);
   const cachedData = await getFromCache(cacheKey);
   
   if (cachedData) {
@@ -205,6 +243,8 @@ export const generateWorksheetContent = async (config: GenerationConfig, existin
       Requirement: Use this EXACT content for 'passageContent' in all new questions.`;
   }
 
+  // Note: We use the ORIGINAL config.customTopic for generation to respect user's specific phrasing/intent in the output,
+  // even though we stored it under a normalized key.
   const prompt = `
     Generate a single ELA practice worksheet.
     Grade Level: 3rd Grade (Ages 8-9)
@@ -299,6 +339,7 @@ export const generateWorksheetContent = async (config: GenerationConfig, existin
   data.questions = shuffledGroups.flat();
 
   // 2. Save to Cache (Hybrid: Local & Server)
+  // We save using the cacheKey derived from the NORMALIZED topic.
   await saveToCache(cacheKey, data);
 
   return data;
@@ -413,10 +454,13 @@ export const regenerateQuestionGroup = async (
 
 /**
  * Uploads a base64 image to the server using the prompt hash as filename.
+ * Optional: skipNormalization parameter allows passing a prompt that is already normalized or if raw hash is desired.
  */
-export const uploadImageToServer = async (base64Data: string, prompt: string): Promise<string | null> => {
+export const uploadImageToServer = async (base64Data: string, prompt: string, skipNormalization: boolean = false): Promise<string | null> => {
     try {
-        const filenameHash = getPromptHash(prompt);
+        // Ensure consistency with generation logic by normalizing if needed
+        const effectivePrompt = skipNormalization ? prompt : await normalizePrompt(prompt);
+        const filenameHash = getPromptHash(effectivePrompt);
         
         const uploadResponse = await fetch(IMAGE_UPLOAD_URL, {
             method: 'POST',
@@ -445,8 +489,13 @@ export const generateIllustration = async (prompt: string, aspectRatio: string =
     if (!API_KEY) throw new Error("API Key missing");
 
     const ai = new GoogleGenAI({ apiKey: API_KEY });
-    const filenameHash = getPromptHash(prompt);
     
+    // 0. NORMALIZE PROMPT (For consistent caching)
+    const normalizedPrompt = await normalizePrompt(prompt);
+    
+    const filenameHash = getPromptHash(normalizedPrompt);
+    const cacheKey = `img_cache_${aspectRatio}_${filenameHash}`;
+
     // 1. Check Server Reuse (unless forced new)
     if (!forceNew) {
         const potentialUrl = `${WORKSHEET_IMAGES_FOLDER}${filenameHash}.png`; // Assuming .png
@@ -463,7 +512,6 @@ export const generateIllustration = async (prompt: string, aspectRatio: string =
     }
 
     // 2. Local Cache Fallback
-    const cacheKey = `img_cache_${aspectRatio}_${prompt.trim().toLowerCase().replace(/\s+/g, '_')}`;
     if (!forceNew) {
         const cached = localStorage.getItem(cacheKey);
         if (cached) return cached;
@@ -475,7 +523,7 @@ export const generateIllustration = async (prompt: string, aspectRatio: string =
             const response = await ai.models.generateContent({
                 model: 'gemini-2.5-flash-image',
                 contents: {
-                    parts: [{ text: prompt }]
+                    parts: [{ text: prompt }] // Generate using ORIGINAL prompt for best detail match
                 },
                 config: {
                     imageConfig: {
@@ -489,7 +537,8 @@ export const generateIllustration = async (prompt: string, aspectRatio: string =
                     const base64Data = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
                     
                     // 3. IMMEDIATE UPLOAD (Optimization)
-                    const publicUrl = await uploadImageToServer(base64Data, prompt);
+                    // Pass normalizedPrompt and set skipNormalization=true
+                    const publicUrl = await uploadImageToServer(base64Data, normalizedPrompt, true);
 
                     if (publicUrl) {
                         // If successful, cache the URL locally (fast!)
