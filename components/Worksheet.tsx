@@ -1,9 +1,12 @@
+
+
 import React, { useState } from 'react';
 import { WorksheetData, GenerationConfig, Question, VisualData } from '../types';
-import { Printer, RefreshCw, Download, ArrowUp, ArrowDown, BookOpen, Image, Upload, Sparkles, X, Check, Trash2 } from 'lucide-react';
+import { Printer, RefreshCw, Download, ArrowUp, ArrowDown, BookOpen, Image, Upload, Sparkles, X, Check, Trash2, CloudUpload } from 'lucide-react';
 import { VisualRenderer } from './VisualRenderer';
 import { EditableField } from './EditableField';
 import html2canvas from 'html2canvas';
+import { uploadImageToServer } from '../services/geminiService';
 
 interface WorksheetProps {
   data: WorksheetData | null;
@@ -37,12 +40,10 @@ export const Worksheet: React.FC<WorksheetProps> = ({
     isGeneratingImage
 }) => {
   
-  // State to track which passage is currently showing the "Add Illustration" options
   const [activeIllustrationMenu, setActiveIllustrationMenu] = useState<number | null>(null);
-  
-  // AI Generation Form State
   const [aiPrompt, setAiPrompt] = useState('');
   const [isPrinterFriendly, setIsPrinterFriendly] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   if (!data) {
     return (
@@ -69,8 +70,37 @@ export const Worksheet: React.FC<WorksheetProps> = ({
   };
   const fonts = getFontClasses();
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = async () => {
+    if (!data) return;
+    setIsSyncing(true);
+
+    try {
+        // 1. Sync Background Image if needed
+        if (config.backgroundImage?.startsWith('data:image') && config.backgroundPrompt) {
+             console.log("Syncing background...");
+             await uploadImageToServer(config.backgroundImage, config.backgroundPrompt);
+        }
+
+        // 2. Sync Question Images
+        // Iterate through all questions to find Base64 images that have prompts
+        const promises = data.questions.map(async (q) => {
+            if (q.visualInfo?.imageUrl?.startsWith('data:image') && q.visualInfo.imagePrompt) {
+                 console.log("Syncing image for Q:", q.id);
+                 const publicUrl = await uploadImageToServer(q.visualInfo.imageUrl, q.visualInfo.imagePrompt);
+                 // Note: We are uploading to ensure future availability.
+                 // We don't necessarily need to hot-swap the state URL right now because print will use the base64 just fine,
+                 // but uploading it ensures the server has it for next time.
+            }
+        });
+
+        await Promise.all(promises);
+    } catch (e) {
+        console.error("Error syncing images on print:", e);
+    } finally {
+        setIsSyncing(false);
+        // Small delay to ensure UI updates before print dialog
+        setTimeout(() => window.print(), 100);
+    }
   };
 
   const handleSaveQuestion = async (index: number) => {
@@ -97,8 +127,6 @@ export const Worksheet: React.FC<WorksheetProps> = ({
           setActiveIllustrationMenu(null);
           return;
       }
-
-      // Initialize Prompt
       let initialPrompt = `An illustration for a story titled "${passageTitle || 'The Story'}".`;
       if (passageContent) {
           const match = passageContent.match(/\[Illustration: (.*?)\]/i);
@@ -108,22 +136,19 @@ export const Worksheet: React.FC<WorksheetProps> = ({
                initialPrompt = `A scene showing ${passageTitle}`;
           }
       }
-
       setAiPrompt(initialPrompt);
-      setIsPrinterFriendly(true); // Default to printer friendly
+      setIsPrinterFriendly(true); 
       setActiveIllustrationMenu(index);
   };
 
   const handleAiGeneration = (index: number) => {
       if (!onUpdateVisual) return;
-      
       let finalPrompt = aiPrompt;
       if (isPrinterFriendly) {
           finalPrompt += ", black and white line art, coloring book style, high contrast, white background, no shading, clean outlines";
       } else {
           finalPrompt += ", vibrant colors, detailed illustration";
       }
-      
       onUpdateVisual(index, 'ai', finalPrompt);
       setActiveIllustrationMenu(null);
   };
@@ -132,10 +157,11 @@ export const Worksheet: React.FC<WorksheetProps> = ({
     <div className="relative w-full h-full overflow-auto bg-gray-100 p-4 md:p-8 print:p-0 print:bg-white print:overflow-visible custom-scrollbar">
       <button 
         onClick={handlePrint}
-        className={`fixed bottom-8 right-8 z-50 text-white p-4 rounded-full shadow-xl no-print flex items-center gap-2 transition-all active:scale-95 bg-brand-600 hover:bg-brand-700`}
+        disabled={isSyncing}
+        className={`fixed bottom-8 right-8 z-50 text-white p-4 rounded-full shadow-xl no-print flex items-center gap-2 transition-all active:scale-95 bg-brand-600 hover:bg-brand-700 disabled:bg-gray-400`}
       >
-        <Printer size={24} />
-        <span className="font-semibold pr-1">Print / Save PDF</span>
+        {isSyncing ? <CloudUpload size={24} className="animate-bounce"/> : <Printer size={24} />}
+        <span className="font-semibold pr-1">{isSyncing ? "Syncing..." : "Print / Save PDF"}</span>
       </button>
 
       <div 
@@ -178,13 +204,9 @@ export const Worksheet: React.FC<WorksheetProps> = ({
 
             <div className={`${config.columns === 2 ? 'grid grid-cols-2 gap-x-8 gap-y-4 items-start' : 'space-y-4'}`}>
             {data.questions.map((q, index) => {
-                // Check if previous question had the SAME passage to avoid repetition
                 const prevQ = data.questions[index - 1];
                 const currentPassage = q.visualInfo?.passageContent;
                 const prevPassage = prevQ?.visualInfo?.passageContent;
-                
-                // Show passage if it exists AND (it's the first question OR it's different from the previous one)
-                // This groups questions under a single passage block
                 const showPassage = currentPassage && (index === 0 || currentPassage !== prevPassage);
 
                 const passageJSX = showPassage ? (
@@ -192,7 +214,6 @@ export const Worksheet: React.FC<WorksheetProps> = ({
                              <div className="flex items-center justify-between mb-1 relative">
                                 <div className="text-xs font-bold text-gray-500 uppercase tracking-wider">Reading Passage</div>
                                 <div className="flex gap-2">
-                                    {/* Add Illustration Button */}
                                     <div className="relative">
                                         <button 
                                             onClick={() => openIllustrationMenu(index, q.visualInfo?.passageTitle, q.visualInfo?.passageContent)}
@@ -208,7 +229,6 @@ export const Worksheet: React.FC<WorksheetProps> = ({
                                                     <button onClick={() => setActiveIllustrationMenu(null)} className="text-gray-400 hover:text-gray-600"><X size={14}/></button>
                                                 </div>
 
-                                                {/* Upload Section */}
                                                 <label className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer text-xs text-gray-700 transition-colors">
                                                     <Upload size={14} className="text-gray-400"/>
                                                     <span>Upload from Computer</span>
@@ -221,7 +241,6 @@ export const Worksheet: React.FC<WorksheetProps> = ({
                                                     <div className="h-px bg-gray-100 flex-1"></div>
                                                 </div>
 
-                                                {/* AI Prompt Section */}
                                                 <div className="space-y-2">
                                                     <label className="block text-[10px] font-bold text-gray-500 uppercase">Image Description</label>
                                                     <textarea 
@@ -254,7 +273,6 @@ export const Worksheet: React.FC<WorksheetProps> = ({
                                                 </div>
                                             </div>
                                         )}
-                                        {/* Overlay to close menu */}
                                         {activeIllustrationMenu === index && (
                                             <div className="fixed inset-0 z-40 bg-black/5" onClick={() => setActiveIllustrationMenu(null)}></div>
                                         )}
@@ -282,7 +300,6 @@ export const Worksheet: React.FC<WorksheetProps> = ({
                                 </div>
                              </div>
                              
-                             {/* Loading Indicator for AI Image */}
                              {isGeneratingImage && activeIllustrationMenu === null && (
                                  <div className="absolute inset-0 bg-white/80 z-10 flex items-center justify-center backdrop-blur-sm rounded">
                                      <div className="flex flex-col items-center gap-2 text-brand-600 animate-pulse">
@@ -331,7 +348,6 @@ export const Worksheet: React.FC<WorksheetProps> = ({
                                 </EditableField>
                             </div>
                             
-                            {/* Render other visuals (like editing task) but skip passage as it is handled above */}
                             {q.visualInfo?.type !== 'text-passage' && (
                                 <VisualRenderer 
                                     data={q.visualInfo} 
@@ -400,7 +416,6 @@ export const Worksheet: React.FC<WorksheetProps> = ({
       {config.includeAnswerKey && (
         <div className="mx-auto bg-white shadow-2xl print:shadow-none w-[8.5in] min-h-[11in] p-[0.5in] mt-8 print:mt-0 print:w-full print:max-w-none print:mx-0 print-break-before break-before-page print:p-0 relative overflow-hidden">
              
-             {/* Background Image Layer for Key */}
              {config.backgroundImage && (
                 <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none print:fixed print:inset-0 print:h-full print:w-full">
                     <img 

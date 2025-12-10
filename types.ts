@@ -44,6 +44,7 @@ export interface VisualData {
   type: VisualType;
   // Custom Image
   imageUrl?: string;
+  imagePrompt?: string; // Stored prompt for server hashing/upload
   imageWidth?: number; // Percentage (10-100)
   
   // ELA / Reading Passage
@@ -147,5 +148,6 @@ export interface GenerationConfig {
   customTopic?: string;
   // Background
   backgroundImage?: string;
+  backgroundPrompt?: string; // Stored prompt for server hashing/upload
   backgroundOpacity?: number;
 }

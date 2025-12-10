@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { GenerationConfig, WorksheetData, Question } from "../types";
 import { getCacheKey, getFromCache, saveToCache } from "./cacheService";
@@ -33,6 +32,7 @@ const getApiKey = (): string => {
 
 const API_KEY = getApiKey();
 const IMAGE_UPLOAD_URL = 'https://educationalresource.org/worksheet_api/image_upload.php';
+const WORKSHEET_IMAGES_FOLDER = 'https://educationalresource.org/worksheet_api/worksheet_images/';
 
 const visualSchema: Schema = {
   type: Type.OBJECT,
@@ -157,6 +157,11 @@ function shuffleGroups<T>(array: T[]): T[] {
     [array[i], array[j]] = [array[j], array[i]];
   }
   return array;
+}
+
+// Generate deterministic hash for filename
+function getPromptHash(prompt: string): number {
+    return Math.abs(prompt.trim().toLowerCase().split('').reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0));
 }
 
 // Detailed prompts for Standards (Aggregated from generators)
@@ -404,15 +409,65 @@ export const regenerateQuestionGroup = async (
     return data.questions;
 };
 
-export const generateIllustration = async (prompt: string, aspectRatio: string = "16:9"): Promise<string> => {
+// --- IMAGE GENERATION & UPLOAD LOGIC ---
+
+/**
+ * Uploads a base64 image to the server using the prompt hash as filename.
+ */
+export const uploadImageToServer = async (base64Data: string, prompt: string): Promise<string | null> => {
+    try {
+        const filenameHash = getPromptHash(prompt);
+        
+        const uploadResponse = await fetch(IMAGE_UPLOAD_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                base64_image: base64Data, 
+                filename_hash: filenameHash 
+            })
+        });
+
+        if (uploadResponse.ok) {
+            const uploadResult = await uploadResponse.json();
+            if (uploadResult.url) {
+                console.log("Image uploaded successfully:", uploadResult.url);
+                return uploadResult.url;
+            }
+        }
+        console.warn("Image upload failed:", uploadResponse.status);
+    } catch (e) {
+        console.error("Error uploading image:", e);
+    }
+    return null;
+};
+
+export const generateIllustration = async (prompt: string, aspectRatio: string = "16:9", forceNew: boolean = false): Promise<string> => {
     if (!API_KEY) throw new Error("API Key missing");
 
     const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const filenameHash = getPromptHash(prompt);
+    
+    // 1. Check Server Reuse (unless forced new)
+    if (!forceNew) {
+        const potentialUrl = `${WORKSHEET_IMAGES_FOLDER}${filenameHash}.png`; // Assuming .png
+        try {
+            // HEAD request to check if it exists
+            const check = await fetch(potentialUrl, { method: 'HEAD' });
+            if (check.ok) {
+                console.log("✨ Found existing image on server! Reusing:", potentialUrl);
+                return potentialUrl;
+            }
+        } catch (e) {
+            // Ignore fetch errors (server might block HEAD, or CORS issues)
+        }
+    }
 
-    // Sanitize cache key
+    // 2. Local Cache Fallback
     const cacheKey = `img_cache_${aspectRatio}_${prompt.trim().toLowerCase().replace(/\s+/g, '_')}`;
-    const cached = localStorage.getItem(cacheKey);
-    if (cached) return cached;
+    if (!forceNew) {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) return cached;
+    }
 
     let attempts = 0;
     while (attempts < 3) {
@@ -433,42 +488,19 @@ export const generateIllustration = async (prompt: string, aspectRatio: string =
                 if (part.inlineData) {
                     const base64Data = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
                     
-                    // --- SERVER UPLOAD LOGIC ---
-                    try {
-                        // Use a hash of the prompt for a unique, deterministic filename
-                        const filenameHash = Math.abs(prompt.trim().toLowerCase().split('').reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0));
+                    // 3. IMMEDIATE UPLOAD (Optimization)
+                    const publicUrl = await uploadImageToServer(base64Data, prompt);
 
-                        // Upload the Base64 data to your server
-                        const uploadResponse = await fetch(IMAGE_UPLOAD_URL, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ 
-                                base64_image: base64Data, 
-                                filename_hash: filenameHash 
-                            })
-                        });
-
-                        if (uploadResponse.ok) {
-                            const uploadResult = await uploadResponse.json();
-                            if (uploadResult.url) {
-                                const finalUrl = uploadResult.url;
-                                // Cache the URL locally
-                                try { localStorage.setItem(cacheKey, finalUrl); } catch (e) {} 
-                                return finalUrl; // Return the public URL
-                            } else {
-                                console.warn("Image upload: Server returned 200 but no URL.", uploadResult);
-                            }
-                        } else {
-                             console.warn("Image upload failed with status:", uploadResponse.status);
-                        }
-                    } catch (uploadErr) {
-                        // Suppress upload errors to keep the app working (fallback to base64 below)
-                        console.warn("Image upload to server failed (Network/CORS). Falling back to Base64.");
+                    if (publicUrl) {
+                        // If successful, cache the URL locally (fast!)
+                        try { localStorage.setItem(cacheKey, publicUrl); } catch (e) {} 
+                        return publicUrl;
+                    } else {
+                        // Fallback: Cache base64 locally if server fails
+                        console.warn("Server upload failed, falling back to Base64.");
+                        try { localStorage.setItem(cacheKey, base64Data); } catch (e) {} 
+                        return base64Data;
                     }
-
-                    // --- FALLBACK TO LOCAL BASE64 ---
-                    try { localStorage.setItem(cacheKey, base64Data); } catch (e) {} 
-                    return base64Data;
                 }
             }
             throw new Error("No image data found in response");

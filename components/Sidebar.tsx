@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { AVAILABLE_STANDARDS, CATEGORY_COLORS } from '../constants';
 import { GenerationConfig, QuestionType, Question } from '../types';
@@ -19,7 +20,6 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate, onAddToWorksheet, isGenerating, onAddQuestion, onExportCSV, hasData, onCloseMobile }) => {
 
-  // Custom Question Modal State
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [customQText, setCustomQText] = React.useState('');
   const [qType, setQType] = React.useState<'multiple-choice' | 'open-ended'>('multiple-choice');
@@ -27,17 +27,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
   const [correctIdx, setCorrectIdx] = React.useState(0);
   const [openEndedAnswer, setOpenEndedAnswer] = React.useState('');
   
-  // New State for Standard Selection and Image Upload
   const [selectedStandard, setSelectedStandard] = React.useState<string>('Custom');
   const [uploadedImage, setUploadedImage] = React.useState<string | undefined>(undefined);
   
-  // Expanded State for Subcategories
   const [expandedStandards, setExpandedStandards] = React.useState<string[]>([]);
-  
-  // State for Extend Passage
   const [extendLastPassage, setExtendLastPassage] = React.useState(false);
 
-  // Background AI State
   const [bgMode, setBgMode] = React.useState<'upload' | 'ai'>('upload');
   const [bgPrompt, setBgPrompt] = React.useState('');
   const [bgIsBW, setBgIsBW] = React.useState(true);
@@ -47,7 +42,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
     setConfig(prev => {
       const exists = prev.selectedStandards.includes(id);
       if (exists) {
-        // Remove standard, its count, and its subcategories
         const newCounts = { ...prev.standardCounts };
         delete newCounts[id];
         const newSubs = { ...prev.selectedSubcategories };
@@ -59,7 +53,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
             selectedSubcategories: newSubs
         };
       } else {
-        // Add standard with default count of 5
         return { 
             ...prev, 
             selectedStandards: [...prev.selectedStandards, id],
@@ -68,7 +61,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
       }
     });
     
-    // Auto-expand if adding
     if (!config.selectedStandards.includes(id)) {
         setExpandedStandards(prev => [...prev, id]);
     }
@@ -104,7 +96,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
   const selectAll = () => {
       const allIds = AVAILABLE_STANDARDS.map(s => s.id);
       const newCounts: Record<string, number> = {};
-      allIds.forEach(id => newCounts[id] = 2); // Default 2 per standard if selecting all
+      allIds.forEach(id => newCounts[id] = 2);
       setConfig(prev => ({
           ...prev, 
           selectedStandards: allIds,
@@ -150,7 +142,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
     if (file) {
         const reader = new FileReader();
         reader.onloadend = () => {
-            setConfig(prev => ({ ...prev, backgroundImage: reader.result as string }));
+            // Background uploaded manually: no prompt to store
+            setConfig(prev => ({ ...prev, backgroundImage: reader.result as string, backgroundPrompt: undefined }));
         };
         reader.readAsDataURL(file);
     }
@@ -167,9 +160,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
             prompt += ", seamless pattern, soft pastel colors, watermark style, faded, suitable for document background";
         }
         
-        // Use 3:4 for vertical page background
         const imageUrl = await generateIllustration(prompt, "3:4");
-        setConfig(prev => ({ ...prev, backgroundImage: imageUrl }));
+        // Store the prompt used so we can upload/sync it on Print
+        setConfig(prev => ({ ...prev, backgroundImage: imageUrl, backgroundPrompt: prompt }));
     } catch (e) {
         console.error("Failed to generate background", e);
     } finally {
@@ -185,13 +178,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
 
     if (qType === 'multiple-choice') {
         finalOptions = options.filter(o => o.trim() !== '');
-        if (finalOptions.length < 2) return; // Need at least 2 options for MC
-        
-        // Map correct index to the filtered array
-        // We need to find the text of the selected correct index
+        if (finalOptions.length < 2) return;
         const correctText = options[correctIdx];
-        if (!correctText.trim()) return; // Selected answer is empty
-        
+        if (!correctText.trim()) return;
         finalAnswer = correctText;
     }
 
@@ -209,7 +198,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
     setIsModalOpen(false);
   };
 
-  // Calculate total questions based on individual counts
   const totalQuestions = Object.values(config.standardCounts).reduce((sum: number, count: number) => sum + count, 0);
 
   return (
@@ -237,10 +225,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
 
       <div className="flex-1 overflow-y-auto p-5 space-y-6">
         
-        {/* Configuration Section */}
         <section className="space-y-5">
           
-          {/* Title Config */}
           <div>
              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                 <Type size={16} /> Title Settings
@@ -270,7 +256,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
              )}
           </div>
 
-          {/* Custom Topic Config */}
           <div>
              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                 <PenTool size={16} /> Custom Plot / Topic
@@ -281,12 +266,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
                 onChange={(e) => setConfig(prev => ({...prev, customTopic: e.target.value}))}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-xs focus:ring-brand-500 focus:border-brand-500 min-h-[60px]"
              />
-             <p className="text-[10px] text-gray-400 mt-1 italic">
-                 The AI will use this for the next passage generated.
-             </p>
           </div>
 
-          {/* Student Names Config */}
           <div>
              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                 <Users size={16} /> Student Names (Fiction Only)
@@ -299,13 +280,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
              />
           </div>
 
-          {/* Background Image Config */}
           <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                 <ImageIcon size={16} /> Page Background
               </label>
 
-              {/* Mode Toggle */}
               <div className="flex rounded-md shadow-sm mb-2">
                   <button
                       onClick={() => setBgMode('upload')}
@@ -363,7 +342,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
                           <div className="flex justify-between items-center">
                               <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Adjust</span>
                               <button 
-                                onClick={() => setConfig(prev => ({...prev, backgroundImage: undefined}))}
+                                onClick={() => setConfig(prev => ({...prev, backgroundImage: undefined, backgroundPrompt: undefined}))}
                                 className="text-[10px] text-red-500 hover:text-red-700 font-medium flex items-center gap-1"
                               >
                                   <Trash2 size={10} /> Remove
@@ -390,7 +369,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
               </div>
           </div>
 
-          {/* Layout & Font Config */}
           <div>
              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                 <Layout size={16} /> Layout & Font
@@ -436,7 +414,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
              </div>
           </div>
 
-          {/* Passage Length Config */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                <AlignLeft size={16} /> Passage Length
@@ -461,12 +438,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
                  Long
                </button>
             </div>
-            <p className="text-[10px] text-gray-400 mt-1 italic text-right">
-                {config.passageLength === 'short' ? '~100-150 words' : config.passageLength === 'medium' ? '~200-300 words' : '~350-500 words'}
-            </p>
           </div>
 
-          {/* Header Options */}
           <div>
              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                 <Settings size={16} /> Page Options
@@ -537,7 +510,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
 
         <hr className="border-gray-100" />
 
-        {/* Standards Selection */}
         <section>
           <div className="flex justify-between items-center mb-3">
             <h3 className="text-sm font-semibold text-gray-700">Common Core Standards</h3>
@@ -598,10 +570,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
                     </div>
                   </div>
                   
-                  {/* Quantity Input & Subcategories */}
                   {isSelected && (
                       <div className="px-3 pb-3 pt-0 border-t border-brand-100/50 mt-1">
-                          {/* Subcategories */}
                           {hasSubcategories && isExpanded && (
                               <div className="mb-3 mt-2 pl-1 space-y-1.5 border-l-2 border-brand-200 ml-1">
                                   <div className="text-[10px] text-brand-600 font-bold uppercase px-2 mb-1">Subcategories:</div>
@@ -641,10 +611,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
         </section>
       </div>
 
-      {/* Footer Action */}
       <div className="p-5 border-t border-gray-200 bg-gray-50 flex flex-col gap-3 flex-shrink-0">
         
-        {/* Top Row: Add Custom / Export */}
         <div className="flex gap-2">
             <button
                 onClick={handleOpenModal}
@@ -668,12 +636,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
 
         <hr className="border-gray-200" />
         
-        {/* Bottom Row: Generation Actions */}
         <div className="flex flex-col gap-2">
-            {/* Add To Worksheet (Append) */}
             {hasData && (
                 <div className="flex flex-col gap-2 bg-blue-50 p-2 rounded-lg border border-blue-100">
-                     {/* Extend Last Passage Option */}
                     <label className="flex items-center gap-2 px-1 cursor-pointer select-none">
                         <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${extendLastPassage ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-300'}`}>
                              {extendLastPassage && <Check size={10} className="text-white" />}
@@ -695,7 +660,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
                 </div>
             )}
 
-            {/* Generate New (Replace) */}
             <button
               onClick={onGenerate}
               disabled={isGenerating || config.selectedStandards.length === 0}
@@ -731,7 +695,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
       </div>
     </aside>
 
-    {/* Custom Question Modal */}
     {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm transition-all animate-in fade-in">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
@@ -746,7 +709,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
                 </div>
                 
                 <div className="p-6 overflow-y-auto custom-scrollbar space-y-4">
-                    {/* Standard Selection */}
                     <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-1">Select Standard</label>
                         <select 
@@ -761,7 +723,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
                         </select>
                     </div>
 
-                    {/* Question Text */}
                     <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-1">Question Text</label>
                         <textarea 
@@ -772,7 +733,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
                         />
                     </div>
 
-                    {/* Image Upload */}
                     <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-1">Upload Image (Optional)</label>
                         <div className="flex items-center gap-2">
@@ -794,7 +754,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
                         )}
                     </div>
 
-                    {/* Type Selection */}
                     <div>
                          <label className="block text-sm font-semibold text-gray-700 mb-2">Question Type</label>
                          <div className="flex gap-2">
@@ -813,7 +772,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ config, setConfig, onGenerate,
                          </div>
                     </div>
 
-                    {/* Options / Answer */}
                     {qType === 'multiple-choice' ? (
                         <div className="space-y-2">
                             <label className="block text-sm font-semibold text-gray-700">Answer Choices</label>
