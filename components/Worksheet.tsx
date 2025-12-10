@@ -1,5 +1,3 @@
-
-
 import React, { useState } from 'react';
 import { WorksheetData, GenerationConfig, Question, VisualData } from '../types';
 import { Printer, RefreshCw, Download, ArrowUp, ArrowDown, BookOpen, Image, Upload, Sparkles, X, Check, Trash2 } from 'lucide-react';
@@ -178,7 +176,7 @@ export const Worksheet: React.FC<WorksheetProps> = ({
             </div>
             </header>
 
-            <div className={`${config.columns === 2 ? 'grid grid-cols-2 gap-x-8 gap-y-4' : 'space-y-4'}`}>
+            <div className={`${config.columns === 2 ? 'grid grid-cols-2 gap-x-8 gap-y-4 items-start' : 'space-y-4'}`}>
             {data.questions.map((q, index) => {
                 // Check if previous question had the SAME passage to avoid repetition
                 const prevQ = data.questions[index - 1];
@@ -189,11 +187,8 @@ export const Worksheet: React.FC<WorksheetProps> = ({
                 // This groups questions under a single passage block
                 const showPassage = currentPassage && (index === 0 || currentPassage !== prevPassage);
 
-                return (
-                <div key={q.id} className="print-break-inside-avoid relative group break-inside-avoid mb-2">
-                    {/* Render Passage Only Once for a Group */}
-                    {showPassage && (
-                        <div className="mb-4 break-inside-avoid relative group/passage border border-dashed border-gray-300 p-2 rounded bg-gray-50/50 hover:bg-white hover:border-gray-400 transition-colors">
+                const passageJSX = showPassage ? (
+                    <div className={`mb-4 break-inside-avoid relative group/passage border border-dashed border-gray-300 p-2 rounded bg-gray-50/50 hover:bg-white hover:border-gray-400 transition-colors ${config.columns === 2 ? 'col-span-2 w-full' : ''}`}>
                              <div className="flex items-center justify-between mb-1 relative">
                                 <div className="text-xs font-bold text-gray-500 uppercase tracking-wider">Reading Passage</div>
                                 <div className="flex gap-2">
@@ -302,9 +297,10 @@ export const Worksheet: React.FC<WorksheetProps> = ({
                                 onUpdatePassage={onUpdatePassageData ? (newData) => onUpdatePassageData(index, newData) : undefined} 
                             />
                             <hr className="border-gray-200 mt-2" />
-                        </div>
-                    )}
+                    </div>
+                ) : null;
 
+                const questionJSX = (
                     <div className="flex gap-2" style={{ marginBottom: `${q.extraSpace || 0}px` }}>
                         <div className="flex flex-col items-center w-6 flex-shrink-0 gap-1 pt-0.5">
                             <span className={`font-bold font-sans text-gray-800 ${fonts.num}`}>{index + 1}.</span>
@@ -368,8 +364,26 @@ export const Worksheet: React.FC<WorksheetProps> = ({
                             )}
                         </div>
                     </div>
+                );
+
+                if (config.columns === 2) {
+                    return (
+                        <React.Fragment key={q.id}>
+                            {passageJSX}
+                            <div className="print-break-inside-avoid relative group break-inside-avoid mb-2 col-span-1">
+                                {questionJSX}
+                            </div>
+                        </React.Fragment>
+                    );
+                }
+
+                return (
+                <div key={q.id} className="print-break-inside-avoid relative group break-inside-avoid mb-2">
+                    {passageJSX}
+                    {questionJSX}
                 </div>
-            )})}
+                );
+            })}
             </div>
 
             <div className="mt-4 pt-2 border-t border-gray-300 flex justify-between items-center text-[9px] text-gray-400 font-sans print:hidden">

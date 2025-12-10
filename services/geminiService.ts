@@ -3,6 +3,37 @@ import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { GenerationConfig, WorksheetData, Question } from "../types";
 import { getCacheKey, getFromCache, saveToCache } from "./cacheService";
 
+// Import Standard Details from Streamlined Generators
+import { RI_PROMPTS } from "./generators/ri";
+import { RL_PROMPTS } from "./generators/rl";
+import { RF_PROMPTS } from "./generators/rf";
+import { L_PROMPTS } from "./generators/l";
+
+// ---------------------------------------------------------------------------
+// API KEY CONFIGURATION
+// ---------------------------------------------------------------------------
+// Checks for Vite env var first (for deployment), falls back to process.env (for AI Studio/Dev)
+const getApiKey = (): string => {
+  try {
+    // @ts-ignore - Vite specific
+    if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_KEY) {
+      // @ts-ignore
+      return import.meta.env.VITE_API_KEY;
+    }
+  } catch (e) {}
+
+  try {
+    if (typeof process !== 'undefined' && process.env?.API_KEY) {
+      return process.env.API_KEY;
+    }
+  } catch (e) {}
+
+  return '';
+};
+
+const API_KEY = getApiKey();
+const IMAGE_UPLOAD_URL = 'https://educationalresource.org/worksheet_api/image_upload.php';
+
 const visualSchema: Schema = {
   type: Type.OBJECT,
   properties: {
@@ -128,27 +159,17 @@ function shuffleGroups<T>(array: T[]): T[] {
   return array;
 }
 
-// Detailed prompts for "Highly Proficient" standards
+// Detailed prompts for Standards (Aggregated from generators)
 const STANDARD_DETAILS: Record<string, string> = {
-  '3.R.RF.03ab': `Task: Identify prefix/suffix, break down words, meaning of affix.`,
-  '3.R.RI.04': `Task: Distinguish literal vs figurative. DOK 2/3: Use context to determine meaning.`,
-  '3.R.RL.04': `Task: Context Clues & Figurative Language (idioms, metaphors, mythology).`,
-  '3.R.RI.05': `Task: Text Features (Sidebars, keywords, headers, charts). NO SPOILERS in Table of Contents.`,
-  '3.R.RL.03': `Task: Connect character traits/motivations to actions/sequence. Cause/Effect in plot.`,
-  'RI.2': `Task: Determine main idea (explicit or implicit) and recount key details.`,
-  'RI.3': `Task: Relationships (Cause/Effect, Sequence, or Steps in a process).`,
-  'RI.9': `Task: Compare Two Texts. MUST generate TWO short texts (Text 1 & Text 2) in 'passageContent'.`,
-  '3.R.RL.01': `Task: Explicit reference to text evidence.`,
-  '3.R.RI.01': `Task: Explicit reference to text evidence.`,
-  'RI.7': `Task: Complex Illustrations. Generate 'bar-graph', 'table', or diagram description.`,
-  'RL.7': `Task: 'visualInfo.type' must be 'text-passage'. Include [Illustration: ...] tag in content.`,
-  'RL.5': `Task: Structure (Chapter, Scene, Stanza).`,
-  'RL.2': `Task: Fables/Myths. Focus on Moral/Lesson.`
+    ...RI_PROMPTS,
+    ...RL_PROMPTS,
+    ...RF_PROMPTS,
+    ...L_PROMPTS
 };
 
 export const generateWorksheetContent = async (config: GenerationConfig, existingPassage?: { title: string, content: string }): Promise<WorksheetData> => {
-  if (!import.meta.env.VITE_API_KEY) {
-    throw new Error("API Key is missing.");
+  if (!API_KEY) {
+    throw new Error("API Key is missing. Please check your configuration.");
   }
 
   // 1. Check Cache (Hybrid: Local -> Server)
@@ -163,7 +184,7 @@ export const generateWorksheetContent = async (config: GenerationConfig, existin
     return sum + (config.standardCounts[stdId] || 0);
   }, 0);
 
-  const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_API_KEY });
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
 
   const lengthInstruction = {
       short: "100-150 words",
@@ -227,8 +248,6 @@ export const generateWorksheetContent = async (config: GenerationConfig, existin
   const data = robustJSONParse<WorksheetData>(text);
 
   // --- PASSAGE NORMALIZATION ---
-  // Fixes issue where AI generates slightly different whitespace for the same passage,
-  // preventing the frontend from grouping them correctly.
   const passageCanonicalMap = new Map<string, string>();
 
   for (const q of data.questions) {
@@ -236,10 +255,8 @@ export const generateWorksheetContent = async (config: GenerationConfig, existin
         // Create a fingerprint for the passage (collapsed whitespace)
         const fingerprint = q.visualInfo.passageContent.trim().replace(/\s+/g, ' ');
         
-        // If we've seen this passage before (by fingerprint), use the stored instance string
         if (passageCanonicalMap.has(fingerprint)) {
             q.visualInfo.passageContent = passageCanonicalMap.get(fingerprint);
-            // Optionally sync title if needed, but strict content match is the key for grouping
         } else {
             passageCanonicalMap.set(fingerprint, q.visualInfo.passageContent);
         }
@@ -255,7 +272,6 @@ export const generateWorksheetContent = async (config: GenerationConfig, existin
       const qPassage = q.visualInfo?.passageContent;
       
       if (qPassage) {
-         // Using the normalized strings, this equality check is now robust
          if (lastPassageContent === qPassage) {
              currentGroup.push(q);
          } else {
@@ -289,9 +305,9 @@ export const generateSingleQuestion = async (
     subcategories?: string[],
     existingPassage?: { title: string, content: string }
 ): Promise<Question> => {
-    if (!import.meta.env.VITE_API_KEY) throw new Error("API Key missing");
+    if (!API_KEY) throw new Error("API Key missing");
 
-    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_API_KEY });
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
     const standardDetail = STANDARD_DETAILS[standard] || "General practice";
     
     let prompt = "";
@@ -336,9 +352,9 @@ export const regenerateQuestionGroup = async (
     subcategories?: string[],
     passageLength: 'short' | 'medium' | 'long' = 'medium'
 ): Promise<Question[]> => {
-    if (!import.meta.env.VITE_API_KEY) throw new Error("API Key missing");
+    if (!API_KEY) throw new Error("API Key missing");
 
-    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_API_KEY });
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
     const standardDetail = STANDARD_DETAILS[standard] || "General practice";
     
     const lengthMap = {
@@ -370,7 +386,7 @@ export const regenerateQuestionGroup = async (
 
     const data = robustJSONParse<{questions: Question[]}>(response.text!);
     
-    // FORCE CONSISTENCY: Ensure all questions in this group share exactly the same passage string
+    // FORCE CONSISTENCY
     if (data.questions.length > 0) {
         const masterPassage = data.questions[0].visualInfo?.passageContent;
         const masterTitle = data.questions[0].visualInfo?.passageTitle;
@@ -389,11 +405,11 @@ export const regenerateQuestionGroup = async (
 };
 
 export const generateIllustration = async (prompt: string, aspectRatio: string = "16:9"): Promise<string> => {
-    if (!import.meta.env.VITE_API_KEY) throw new Error("API Key missing");
+    if (!API_KEY) throw new Error("API Key missing");
 
-    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_API_KEY });
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
 
-    // Use a simpler cache key for images
+    // Sanitize cache key
     const cacheKey = `img_cache_${aspectRatio}_${prompt.trim().toLowerCase().replace(/\s+/g, '_')}`;
     const cached = localStorage.getItem(cacheKey);
     if (cached) return cached;
@@ -415,9 +431,44 @@ export const generateIllustration = async (prompt: string, aspectRatio: string =
 
             for (const part of response.candidates?.[0]?.content?.parts || []) {
                 if (part.inlineData) {
-                    const result = `data:image/png;base64,${part.inlineData.data}`;
-                    try { localStorage.setItem(cacheKey, result); } catch (e) {} // Best effort save
-                    return result;
+                    const base64Data = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+                    
+                    // --- SERVER UPLOAD LOGIC ---
+                    try {
+                        // Use a hash of the prompt for a unique, deterministic filename
+                        const filenameHash = Math.abs(prompt.trim().toLowerCase().split('').reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0));
+
+                        // Upload the Base64 data to your server
+                        const uploadResponse = await fetch(IMAGE_UPLOAD_URL, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ 
+                                base64_image: base64Data, 
+                                filename_hash: filenameHash 
+                            })
+                        });
+
+                        if (uploadResponse.ok) {
+                            const uploadResult = await uploadResponse.json();
+                            if (uploadResult.url) {
+                                const finalUrl = uploadResult.url;
+                                // Cache the URL locally
+                                try { localStorage.setItem(cacheKey, finalUrl); } catch (e) {} 
+                                return finalUrl; // Return the public URL
+                            } else {
+                                console.warn("Image upload: Server returned 200 but no URL.", uploadResult);
+                            }
+                        } else {
+                             console.warn("Image upload failed with status:", uploadResponse.status);
+                        }
+                    } catch (uploadErr) {
+                        // Suppress upload errors to keep the app working (fallback to base64 below)
+                        console.warn("Image upload to server failed (Network/CORS). Falling back to Base64.");
+                    }
+
+                    // --- FALLBACK TO LOCAL BASE64 ---
+                    try { localStorage.setItem(cacheKey, base64Data); } catch (e) {} 
+                    return base64Data;
                 }
             }
             throw new Error("No image data found in response");

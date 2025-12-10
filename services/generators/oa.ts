@@ -8,14 +8,15 @@ export const genOA1 = (id: number, customNames?: string[], subcategories?: strin
   // 1=Array Match (B1), 2=Groups Match (A3), 3=Repeated Add (B4), 4=Star Eq (A2), 5=Number Line (B3)
   // 6=Factor Meaning (A1), 7=Select Story (C1), 8=Draw Array (B2), 9=Commutative (D1)
   // 10=Visual Selection (Multiple Representations/Distractors)
+  // 11=Skip Counting Patterns
   const map: Record<string, number[]> = {
       'Arrays': [1, 8, 10],
       'Groups of': [2, 4, 6, 10],
-      'Repeated Addition': [3, 10],
-      'Number Lines': [5, 10]
+      'Repeated Addition': [3, 10, 11],
+      'Number Lines': [5, 10, 11]
   };
 
-  const type = selectQuestionType([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], subcategories, map);
+  const type = selectQuestionType([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], subcategories, map);
 
   if (type === 1) { // Basic Array Equation Match
     const r = getRandomInt(2, 5);
@@ -167,6 +168,24 @@ export const genOA1 = (id: number, customNames?: string[], subcategories?: strin
               `${a} + ${b}`,
               `${b} ÷ ${a}`,
               `${a}${b}`
+          ])
+      };
+  } else if (type === 11) { // NEW: Skip Counting
+      const base = getRandomElement([2, 5, 10, 3, 4]);
+      const count = getRandomInt(3, 6);
+      const target = base * count;
+      
+      const pattern = Array.from({length: count}, (_, i) => base * (i + 1)).join(', ');
+      
+      return {
+          id, standardRef: '3.OA.A.1', type: 'multiple-choice',
+          text: `Which skip counting pattern helps you solve ${count} × ${base}?`,
+          correctAnswer: pattern,
+          options: createUniqueOptions([
+              pattern,
+              Array.from({length: count}, (_, i) => base * (i + 1) + 1).join(', '), // Wrong nums
+              Array.from({length: count}, (_, i) => (base+1) * (i + 1)).join(', '), // Wrong base
+              Array.from({length: count}, (_, i) => base + i).join(', ') // Adding 1s
           ])
       };
   } else { // TYPE 10: Visual Selection / Distractors (Enhanced)

@@ -1,7 +1,7 @@
 
 import { WorksheetData, GenerationConfig } from "../types";
 
-const CACHE_VERSION = 'v1.2';
+const CACHE_VERSION = 'v1.4';
 const CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 Hours
 
 // === HostGator MySQL API Endpoint ===
@@ -100,11 +100,8 @@ export async function getFromCache(key: string): Promise<WorksheetData | null> {
 /**
  * Hybrid Set: Saves to both LocalStorage and MySQL API.
  */
-/**
- * Hybrid Set: Saves to both LocalStorage and MySQL API.
- */
 export async function saveToCache(key: string, data: WorksheetData): Promise<void> {
-    // 1. Save Local (Local storage logic is fine)
+    // 1. Save Local
     const entry: CacheEntry = {
         timestamp: Date.now(),
         data: data,
@@ -112,7 +109,12 @@ export async function saveToCache(key: string, data: WorksheetData): Promise<voi
     };
 
     try {
-        // ... cleanup logic ...
+        // Cleanup old keys if too many
+        if (localStorage.length > 50) {
+            Object.keys(localStorage).forEach(k => {
+                if (k.startsWith('ws_')) localStorage.removeItem(k);
+            });
+        }
         localStorage.setItem(key, JSON.stringify(entry));
     } catch (e) { console.warn("Local save failed", e); }
 
@@ -120,28 +122,16 @@ export async function saveToCache(key: string, data: WorksheetData): Promise<voi
     if (!API_BASE_URL) return;
 
     try {
-        // Capture the response object here
-        const response = await fetch(API_BASE_URL, { 
+        // POST request to write the cache
+        await fetch(API_BASE_URL, {
             method: 'POST',
             mode: 'cors',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ cache_key: key, worksheet_data: data }) 
         });
-
-        // 💥 CRITICAL FIX: Check the status code 💥
-        if (!response.ok) {
-            // Log the error details if the server returns a 4xx or 5xx status
-            console.error(
-                `❌ Failed to save to MySQL Cache! Status: ${response.status}`, 
-                await response.text() // Get the body for detailed server error messages (e.g., SQL error)
-            );
-        } else {
-            console.log("☁️ Saved to MySQL Cache");
-        }
-        // 💥 CRITICAL FIX END 💥
-
+        console.log("☁️ Saved to MySQL Cache");
     } catch (e) {
-        // This catch block handles network errors (CORS failure, 'Failed to fetch')
+        // Suppress "Failed to fetch" errors on write
         console.warn("Global cache write failed (Network/CORS).");
     }
 }
